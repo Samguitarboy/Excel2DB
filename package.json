@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mssql": "^11.0.1",
+    "multer": "^2.0.2",
+    "validator": "^13.15.15"
+  },
+  "name": "excel2db",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

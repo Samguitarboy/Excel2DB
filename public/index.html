@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>Excel 上傳</title>
+</head>
+<body>
+  <h1>登入</h1>
+  <form id="login-form">
+    帳號：<input type="text" id="username" /><br />
+    密碼：<input type="password" id="password" /><br />
+    <button type="submit">登入</button>
+  </form>
+
+  <h1>上傳 Excel</h1>
+  <form id="upload-form" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".xlsx" /><br />
+    <button type="submit">上傳</button>
+  </form>
+
+  <script>
+    let token = '';
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+      if (!res.ok) {
+        alert('登入失敗');
+        return;
+      }
+      const data = await res.json();
+      token = data.token;
+      console.log(token);
+      alert('登入成功');
+    });
+
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!token) {
+        alert('請先登入');
+        return;
+      }
+      const formData = new FormData(e.target);
+      const res = await fetch('/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const text = await res.text();
+      alert(text);
+    });
+  </script>
+</body>
+</html>
