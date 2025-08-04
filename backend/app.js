@@ -10,7 +10,7 @@ const ExcelJS = require('exceljs');
 const { authenticateJWT } = require('./auth');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -30,7 +30,7 @@ const dbConfig = {
 };
 
 // 登入取得 JWT
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   console.log(`Login attempt for username: ${username}`); // Log username
   const users = JSON.parse(fs.readFileSync('users.json', 'utf-8'));
@@ -104,7 +104,7 @@ app.post('/upload', authenticateJWT, upload.single('file'), async (req, res) => 
 });
 
 // 取得 Excel 資料
-app.get('/api/excel-data', async (req, res) => {
+app.get('/api/excel-data', authenticateJWT, async (req, res) => {
   const filePath = path.join(__dirname, 'uploads', 'test1.xlsx');
 
   try {
