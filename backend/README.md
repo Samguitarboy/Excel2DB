@@ -5,7 +5,7 @@
 ## 技術棧 (Tech Stack)
 
 *   **Node.js**: 執行環境
-*   **Express.js**: Web 應用程式框架
+*   **Express.js**: Web 應用程式框架 (v4.x)
 *   **Multer**: 處理檔案上傳
 *   **ExcelJS**: 讀寫 Excel 檔案
 *   **jsonwebtoken**: 實現 JWT (JSON Web Token) 認證
@@ -133,7 +133,7 @@ JWT_SECRET=your_jwt_secret_key_here # 請替換為一個強密鑰
 
 #### 1. 上傳 Excel 檔案
 
-*   **URL**: `/upload`
+*   **URL**: `/api/upload`
 *   **方法**: `POST`
 *   **描述**: 上傳 Excel 檔案並解析其內容。解析結果會列印到後端控制台。
 *   **請求類型**: `multipart/form-data`
