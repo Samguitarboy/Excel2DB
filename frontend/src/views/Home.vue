@@ -5,7 +5,9 @@
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <h1>CEPP-可攜式儲存媒體使用清單列表</h1>
-            <button class="btn btn-outline-danger" @click="handleLogout">登出</button>
+            <button class="btn btn-outline-danger" @click="handleLogout">
+              {{ guestStore.isGuestMode ? '返回單位選擇' : '登出' }}
+            </button>
           </div>
           <div class="card-body">
             <div v-if="loading" class="text-center">
@@ -67,8 +69,10 @@
 
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router'; // 引入 useRouter
 import { useAuthStore } from '../stores/auth';
-import { fetchExcelData } from '../services/api.js';
+import { useGuestStore } from '../stores/guest'; // 引入 useGuestStore
+import { fetchExcelData, fetchPublicDataByUnit } from '../services/api.js'; // 引入 fetchPublicDataByUnit
 import DataTable from '../components/DataTable.vue';
 import Pagination from '../components/Pagination.vue';
 import DetailsModal from '../components/DetailsModal.vue';
@@ -93,13 +97,21 @@ const selectedRow = ref(null);     // 儲存被選中要查看詳細資料的行
 const toast = ref({ show: false, message: '', type: 'danger' }); // Toast 提示訊息的狀態
 
 // --- 服務 (Services) ---
+const router = useRouter(); // 獲取 router 實例
 const authStore = useAuthStore();
+const guestStore = useGuestStore(); // 獲取 guest store 實例
 
 // --- 生命週期鉤子 (Lifecycle Hook) ---
 onMounted(async () => {
   try {
-    // 元件掛載後，從後端獲取資料
-    excelData.value = await fetchExcelData();
+    // 根據是否為來賓模式，獲取不同的資料
+    if (guestStore.isGuestMode) {
+      excelData.value = await fetchPublicDataByUnit(guestStore.guestUnit);
+      // 在來賓模式下，強制設定 (自)所屬單位 的搜尋條件
+      columnSearchQueries.value['(自)所屬單位'] = guestStore.guestUnit;
+    } else {
+      excelData.value = await fetchExcelData();
+    }
   } catch (err) {
     error.value = err.message;
   } finally {
@@ -113,7 +125,12 @@ onMounted(async () => {
 const tableHeaders = computed(() => {
   if (!excelData.value || excelData.value.length === 0) return [];
   const allHeaders = Object.keys(excelData.value[0]);
-  const hiddenColumns = ['財產編號', '(自)單位管控窗口', '(自)狀態'];
+  let hiddenColumns = ['財產編號', '(自)單位管控窗口', '(自)狀態'];
+  
+  // 在來賓模式下，隱藏「(自)所屬單位」欄位
+  if (guestStore.isGuestMode) {
+    hiddenColumns.push('(自)所屬單位');
+  }
   return allHeaders.filter(header => !hiddenColumns.includes(header));
 });
 
@@ -121,7 +138,13 @@ const tableHeaders = computed(() => {
 const dropdownOptions = computed(() => {
   if (!excelData.value || excelData.value.length === 0) return {};
   const options = {};
-  const columnsForDropdown = ['(自)分類', '(自)狀態', '(自)所屬單位'];
+  let columnsForDropdown = ['(自)分類', '(自)狀態', '(自)所屬單位'];
+
+  // 在來賓模式下，不為「(自)所屬單位」生成下拉選單
+  if (guestStore.isGuestMode) {
+    columnsForDropdown = columnsForDropdown.filter(col => col !== '(自)所屬單位');
+  }
+
   columnsForDropdown.forEach(header => {
     if (Object.keys(excelData.value[0] || {}).includes(header)) {
       const values = excelData.value.map(row => row[header]).filter(val => val);
@@ -194,14 +217,23 @@ watch(tableHeaders, (newHeaders) => {
   newHeaders.forEach(header => {
     initialQueries[header] = (header === '最後存取時間') ? { operator: 'gt', value: '' } : '';
   });
+  // 如果是來賓模式，則不覆蓋 (自)所屬單位 的搜尋條件
+  if (guestStore.isGuestMode && columnSearchQueries.value['(自)所屬單位']) {
+    initialQueries['(自)所屬單位'] = columnSearchQueries.value['(自)所屬單位'];
+  }
   columnSearchQueries.value = initialQueries;
 });
 
 // --- 方法 (Methods) ---
 
-/** 處理登出 */
+/** 處理登出或返回單位選擇頁 */
 const handleLogout = () => {
-  authStore.logout();
+  if (guestStore.isGuestMode) {
+    guestStore.clearGuestMode(); // 清除來賓模式狀態
+    router.push('/guest-login'); // 返回來賓登入頁
+  } else {
+    authStore.logout(); // 執行正常登出
+  }
 };
 
 /**
@@ -231,7 +263,7 @@ function changePage(page) {
 /** 處理分頁跳轉 */
 function goToPage() {
   const page = Number(jumpPage.value);
-  if (page >= 1 && page <= totalPages.value) {
+  if (page >= 1 && page >= 1 && page <= totalPages.value) {
     currentPage.value = page;
   } else {
     showToast(`請輸入 1 到 ${totalPages.value} 之間的頁碼。`);

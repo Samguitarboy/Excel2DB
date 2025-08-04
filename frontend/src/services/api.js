@@ -12,8 +12,16 @@ const apiClient = axios.create({
   },
 });
 
+// 建立一個用於公開 API 的 axios 實例，不帶有認證攔截器
+const publicApiClient = axios.create({
+  baseURL: '/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 /**
- * 請求攔截器
+ * 請求攔截器 (用於需要認證的 API)
  * 
  * 1. 在每個請求發送前，呼叫 showLoading() 來顯示全域載入動畫。
  * 2. 從 Pinia store 中取得 token，並將其附加到請求的 Authorization 標頭中。
@@ -35,33 +43,36 @@ apiClient.interceptors.request.use(
 );
 
 /**
- * 回應攔截器
+ * 回應攔截器 (用於所有 API，包括公開 API)
  * 
  * 1. 在收到回應後，呼叫 hideLoading() 來隱藏全域載入動畫。
  * 2. 檢查是否有 401 (未授權) 或 403 (禁止) 錯誤，若有則自動登出。
  * 3. 統一處理並拋出一個更易讀的錯誤訊息。
  * 4. 自動解包後端回應中的 `data` 屬性。
  */
-apiClient.interceptors.response.use(
-  (response) => {
-    hideLoading();
-    // 為了方便，直接回傳後端資料中的 data 部分，如果後端直接回傳陣列也能兼容
-    return response.data.data || response.data;
-  },
-  (error) => {
-    hideLoading();
-    const authStore = useAuthStore();
-    // 檢查是否為 token 失效或權限不足的錯誤
-    if (error.response && [401, 403].includes(error.response.status)) {
-      authStore.logout(); // 自動登出
+[apiClient, publicApiClient].forEach(client => {
+  client.interceptors.response.use(
+    (response) => {
+      hideLoading();
+      // 為了方便，直接回傳後端資料中的 data 部分，如果後端直接回傳陣列也能兼容
+      return response.data.data || response.data;
+    },
+    (error) => {
+      hideLoading();
+      const authStore = useAuthStore();
+      // 檢查是否為 token 失效或權限不足的錯誤
+      // 注意：公開 API 不會觸發此登出邏輯，因為它們不依賴 token
+      if (error.response && [401, 403].includes(error.response.status)) {
+        authStore.logout(); // 自動登出
+      }
+      // 格式化錯誤訊息，優先使用後端提供的錯誤訊息
+      const message = error.response?.data?.message || error.message || '發生未知錯誤';
+      return Promise.reject(new Error(message));
     }
-    // 格式化錯誤訊息，優先使用後端提供的錯誤訊息
-    const message = error.response?.data?.message || error.message || '發生未知錯誤';
-    return Promise.reject(new Error(message));
-  }
-);
+  );
+});
 
-// --- 重構後的 API 函式 ---
+// --- 認證相關 API 函式 ---
 
 /**
  * 登入使用者並獲取 JWT。
@@ -73,9 +84,28 @@ export function loginUser(credentials) {
 }
 
 /**
- * 從後端 API 獲取 Excel 資料。
+ * 從後端 API 獲取 Excel 資料 (需要認證)。
  * @returns {Promise<Array>} 返回包含資料的陣列。
  */
 export function fetchExcelData() {
   return apiClient.get('/excel-data');
+}
+
+// --- 公開 API 函式 (無需認證) ---
+
+/**
+ * 從後端 API 獲取所有不重複的單位列表 (無需認證)。
+ * @returns {Promise<Array<string>>} 返回包含單位名稱字串的陣列。
+ */
+export function fetchPublicUnits() {
+  return publicApiClient.get('/public/units');
+}
+
+/**
+ * 從後端 API 獲取指定單位的 Excel 資料 (無需認證)。
+ * @param {string} unit - 要查詢的單位名稱。
+ * @returns {Promise<Array>} 返回包含該單位資料的陣列。
+ */
+export function fetchPublicDataByUnit(unit) {
+  return publicApiClient.get('/public/data', { params: { unit } });
 }

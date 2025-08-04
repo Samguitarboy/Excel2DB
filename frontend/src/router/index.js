@@ -1,11 +1,13 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useGuestStore } from '../stores/guest'; // 引入 useGuestStore
 
 // 使用動態 import() 實現路由懶載入 (Lazy Loading)。
 // 這會將每個頁面的程式碼分割成獨立的檔案，只在使用者訪問該頁面時才載入，
 // 從而加快應用程式的初始載入速度。
 const Home = () => import('../views/Home.vue');
 const Login = () => import('../views/Login.vue');
+const GuestLogin = () => import('../views/GuestLogin.vue'); // 新增的來賓登入頁面
 
 const routes = [
   {
@@ -18,6 +20,12 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login,
+  },
+  {
+    path: '/guest-login',
+    name: 'GuestLogin',
+    component: GuestLogin,
+    // 這個路由不需要認證，所以沒有 requiresAuth: true
   },
 ];
 
@@ -34,9 +42,10 @@ const router = createRouter({
  */
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
+  const guestStore = useGuestStore(); // 獲取 guest store 實例
 
-  // 情況1: 目標路由需要認證，但使用者未登入
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+  // 情況1: 目標路由需要認證，但使用者未登入且不是來賓模式
+  if (to.meta.requiresAuth && !authStore.isAuthenticated && !guestStore.isGuestMode) {
     // 將使用者導向登入頁
     next({ name: 'Login' });
   
@@ -45,7 +54,7 @@ router.beforeEach((to, from, next) => {
     // 將使用者導向首頁，避免重複登入
     next({ name: 'Home' });
 
-  // 情況3: 其他所有情況 (無需認證的頁面，或已登入使用者訪問需認證的頁面)
+  // 情況3: 其他所有情況 (無需認證的頁面，或已登入使用者訪問需認證的頁面，或來賓模式訪問需認證的頁面)
   } else {
     // 允許路由繼續
     next();

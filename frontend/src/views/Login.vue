@@ -2,11 +2,11 @@
   <div class="login-container">
     <div class="card shadow">
       <div class="card-body p-4">
-        <h3 class="card-title text-center mb-4">登入</h3>
+        <h3 class="card-title text-center mb-4">可攜式儲存媒體使用情形</h3>
         <form @submit.prevent="handleLogin">
           <div v-if="error" class="alert alert-danger">{{ error }}</div>
           <div class="mb-3">
-            <label for="username" class="form-label">使用者名稱</label>
+            <label for="username" class="form-label">管理者名稱</label>
             <input type="text" class="form-control" id="username" v-model="username" required>
           </div>
           <div class="mb-3">
@@ -18,6 +18,9 @@
               <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
               {{ loading ? '登入中...' : '登入' }}
             </button>
+          </div>
+          <div class="text-center mt-3">
+            <router-link to="/guest-login" class="text-decoration-none">或以來賓身分查看特定單位</router-link>
           </div>
         </form>
       </div>
