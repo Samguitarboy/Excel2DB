@@ -103,6 +103,38 @@ app.post('/upload', authenticateJWT, upload.single('file'), async (req, res) => 
   }
 });
 
+// 取得 Excel 資料
+app.get('/api/excel-data', async (req, res) => {
+  const filePath = path.join(__dirname, 'uploads', 'test1.xlsx');
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).send('Excel file not found.');
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    const worksheet = workbook.getWorksheet(1); // 假設是第一張工作表
+
+    const rows = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // 跳過標題列
+      const rowData = {};
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        // 使用第一列的標頭作為 JSON 的鍵
+        const headerCell = worksheet.getRow(1).getCell(colNumber);
+        rowData[headerCell.value] = cell.value;
+      });
+      rows.push(rowData);
+    });
+
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error reading Excel file:', error);
+    res.status(500).send('Error reading Excel file');
+  }
+});
+
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);
 });
