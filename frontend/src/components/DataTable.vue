@@ -1,5 +1,11 @@
 <template>
-  <div class="table-responsive">
+  <div :class="{ 'filters-mobile-open': isFilterVisible }">
+    <div class="d-grid d-md-none mb-2">
+      <button class="btn btn-outline-secondary btn-sm" type="button" @click="isFilterVisible = !isFilterVisible">
+        <i class="bi bi-funnel-fill"></i> {{ isFilterVisible ? '隱藏篩選條件' : '顯示篩選條件' }}
+      </button>
+    </div>
+    <div class="table-responsive">
     <table class="table table-striped table-hover rwd-table">
       <thead class="table-dark">
         <tr>
@@ -80,9 +86,11 @@
       </tbody>
     </table>
   </div>
+  </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import SortIcon from './SortIcon.vue';
 
 defineProps({
@@ -113,6 +121,8 @@ defineProps({
 });
 
 defineEmits(['sort', 'update:searchQueries', 'view-details']);
+
+const isFilterVisible = ref(false);
 </script>
 
 <style scoped>
@@ -139,8 +149,15 @@ th {
 
 /* RWD Table Styles */
 @media (max-width: 767.98px) {
-  .rwd-table thead {
+  /* 在手機版，只隱藏標題列，保留 thead 元素以便顯示篩選列 */
+  .rwd-table > thead > tr:not(.filter-row) {
     display: none;
+  }
+
+  /* 在手機版，預設隱藏篩選列 */
+  .rwd-table .filter-row {
+    display: none;
+    border-bottom: 1px solid #495057; /* 為篩選區塊加上底線 */
   }
 
   .rwd-table tr {
@@ -148,6 +165,16 @@ th {
     margin-bottom: 1rem;
     border: 1px solid #dee2e6;
     border-radius: .25rem;
+  }
+
+  /* 當切換為顯示時，讓篩選列以區塊形式出現 */
+  .filters-mobile-open .rwd-table .filter-row {
+    display: block;
+  }
+
+  /* 讓篩選列中的儲存格垂直堆疊 */
+  .rwd-table .filter-row th {
+    display: block;
   }
   
   .rwd-table td {
