@@ -29,26 +29,45 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { loginUser as apiLogin } from '../services/api';
-import { useAuth } from '../composables/useAuth';
+import { useAuthStore } from '../stores/auth';
 
+// -- state --
 const username = ref('');
 const password = ref('');
-const error = ref(null);
-const loading = ref(false);
+const error = ref(null); // 用於儲存登入失敗的錯誤訊息
+const loading = ref(false); // 用於控制登入按鈕的禁用狀態和顯示文字
 
+// -- services --
 const router = useRouter();
-const { setToken } = useAuth();
+const authStore = useAuthStore();
 
+/**
+ * 處理登入邏輯
+ */
 const handleLogin = async () => {
-  loading.value = true;
-  error.value = null;
+  loading.value = true; // 開始登入，禁用按鈕
+  error.value = null;   // 清除之前的錯誤訊息
+
   try {
-    const token = await apiLogin({ username: username.value, password: password.value });
-    setToken(token);
+    // 呼叫 API 進行登入
+    const response = await apiLogin({ 
+      username: username.value, 
+      password: password.value 
+    });
+
+    // 登入成功後，使用 auth store 來儲存 token
+    authStore.setToken(response.token);
+
+    // 使用 router 導向到首頁
     router.push('/');
+
   } catch (err) {
+    // 如果 API 呼叫失敗，顯示錯誤訊息
+    // 注意：axios 攔截器已經處理了網路層面的錯誤，這裡的 catch 主要處理業務邏輯上的失敗
     error.value = '登入失敗，請檢查您的帳號或密碼。';
+
   } finally {
+    // 無論成功或失敗，最終都結束載入狀態
     loading.value = false;
   }
 };

@@ -1,46 +1,81 @@
 import axios from 'axios';
+import { useAuthStore } from '../stores/auth';
+import { useLoading } from '../composables/useLoading';
 
-const API_URL = '/api';
+const { showLoading, hideLoading } = useLoading();
+
+// 建立一個可重用的 axios 實例，並設定基礎 URL 和標頭
+const apiClient = axios.create({
+  baseURL: '/api', // 所有請求都會自動加上 /api 前綴
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+/**
+ * 請求攔截器
+ * 
+ * 1. 在每個請求發送前，呼叫 showLoading() 來顯示全域載入動畫。
+ * 2. 從 Pinia store 中取得 token，並將其附加到請求的 Authorization 標頭中。
+ */
+apiClient.interceptors.request.use(
+  (config) => {
+    showLoading();
+    const authStore = useAuthStore();
+    const token = authStore.token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    hideLoading(); // 如果請求設定出錯，也要隱藏載入動畫
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * 回應攔截器
+ * 
+ * 1. 在收到回應後，呼叫 hideLoading() 來隱藏全域載入動畫。
+ * 2. 檢查是否有 401 (未授權) 或 403 (禁止) 錯誤，若有則自動登出。
+ * 3. 統一處理並拋出一個更易讀的錯誤訊息。
+ * 4. 自動解包後端回應中的 `data` 屬性。
+ */
+apiClient.interceptors.response.use(
+  (response) => {
+    hideLoading();
+    // 為了方便，直接回傳後端資料中的 data 部分，如果後端直接回傳陣列也能兼容
+    return response.data.data || response.data;
+  },
+  (error) => {
+    hideLoading();
+    const authStore = useAuthStore();
+    // 檢查是否為 token 失效或權限不足的錯誤
+    if (error.response && [401, 403].includes(error.response.status)) {
+      authStore.logout(); // 自動登出
+    }
+    // 格式化錯誤訊息，優先使用後端提供的錯誤訊息
+    const message = error.response?.data?.message || error.message || '發生未知錯誤';
+    return Promise.reject(new Error(message));
+  }
+);
+
+// --- 重構後的 API 函式 ---
 
 /**
  * 登入使用者並獲取 JWT。
  * @param {Object} credentials - 包含 username 和 password 的物件。
- * @returns {Promise<String>} 返回 JWT token。
- * @throws {Error} 如果登入失敗，則拋出錯誤。
+ * @returns {Promise<Object>} 返回後端的回應。
  */
-export async function loginUser(credentials) {
-  try {
-    const response = await axios.post(`${API_URL}/login`, credentials);
-    return response.data.token;
-  } catch (err) {
-    console.error('Login API request failed:', err);
-    throw err;
-  }
+export function loginUser(credentials) {
+  return apiClient.post('/login', credentials);
 }
 
 /**
  * 從後端 API 獲取 Excel 資料。
- * @returns {Promise<Array>} 返回包含資料陣列的 Promise。
- * @throws {Error} 如果 API 請求失敗，則拋出錯誤。
+ * @returns {Promise<Array>} 返回包含資料的陣列。
  */
-export async function fetchExcelData() {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('No authentication token found.');
-    }
-    const response = await axios.get(`${API_URL}/excel-data`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    // 確保無論後端回傳的資料結構是 { data: [...] } 還是 [...]，都能正確處理
-    return response.data.data || response.data;
-  } catch (err) {
-    console.error('API 請求失敗:', err);
-    // 如果 token 失效或未授權，自動導向登入頁
-    if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-      localStorage.removeItem('token');
-      window.location.hash = '/login';
-    }
-    throw new Error('無法載入資料。請確認您已登入或後端服務正在運行。');
-  }
+export function fetchExcelData() {
+  return apiClient.get('/excel-data');
 }

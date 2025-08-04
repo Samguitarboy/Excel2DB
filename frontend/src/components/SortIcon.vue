@@ -8,20 +8,25 @@
 import { computed } from 'vue';
 
 const props = defineProps({
+  // 此圖示是否為目前排序的欄位
   active: {
     type: Boolean,
     default: false
   },
+  // 排序順序 ('asc' 或 'desc')
   sortOrder: {
     type: String,
     default: 'asc'
   }
 });
 
+// 根據 active 和 sortOrder 狀態，動態計算要顯示的 Bootstrap Icon class
 const iconClass = computed(() => {
+  // 如果不是當前排序的欄位，顯示預設的上下箭頭圖示
   if (!props.active) {
-    return 'bi bi-arrow-down-up'; // 預設、未啟用時的圖示
+    return 'bi bi-arrow-down-up';
   }
+  // 如果是當前排序的欄位，根據升序或降序顯示對應的箭頭圖示
   return props.sortOrder === 'asc' ? 'bi bi-arrow-up-short' : 'bi bi-arrow-down-short';
 });
 </script>

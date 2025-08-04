@@ -93,35 +93,33 @@
 import { ref } from 'vue';
 import SortIcon from './SortIcon.vue';
 
+// --- Props --- 
+// 定義此元件接收的所有屬性
 defineProps({
-  headers: {
-    type: Array,
-    required: true
-  },
-  data: {
-    type: Array,
-    required: true
-  },
-  sortKey: {
-    type: String,
-    required: true
-  },
-  sortOrder: {
-    type: String,
-    required: true
-  },
-  searchQueries: {
-    type: Object,
-    required: true
-  },
-  dropdownOptions: {
-    type: Object,
-    required: true
-  }
+  // 表格標頭陣列
+  headers: { type: Array, required: true },
+  // 要顯示的資料陣列 (已經過分頁處理)
+  data: { type: Array, required: true },
+  // 目前排序的欄位 key
+  sortKey: { type: String, required: true },
+  // 目前的排序順序 ('asc' 或 'desc')
+  sortOrder: { type: String, required: true },
+  // 包含所有搜尋條件的物件
+  searchQueries: { type: Object, required: true },
+  // 為特定欄位提供下拉選單選項的物件
+  dropdownOptions: { type: Object, required: true }
 });
 
-defineEmits(['sort', 'update:searchQueries', 'view-details']);
+// --- Emits ---
+// 定義此元件會觸發的事件，以便父元件監聽
+defineEmits([
+  'sort',             // 當使用者點擊標頭進行排序時觸發
+  'update:searchQueries', // 當任何搜尋條件改變時觸發
+  'view-details'      // 當使用者點擊「查看詳情」按鈕時觸發
+]);
 
+// --- State ---
+// 控制在手機版上是否顯示篩選條件區域
 const isFilterVisible = ref(false);
 </script>
 
@@ -147,19 +145,21 @@ th {
   padding: 0.5rem;
 }
 
-/* RWD Table Styles */
+/* RWD (響應式網頁設計) 樣式 */
+/* 當螢幕寬度小於 768px 時生效 */
 @media (max-width: 767.98px) {
-  /* 在手機版，只隱藏標題列，保留 thead 元素以便顯示篩選列 */
+  /* 隱藏傳統的 a-zA-Z0-9 標題列，但保留 thead 元素以便顯示篩選列 */
   .rwd-table > thead > tr:not(.filter-row) {
     display: none;
   }
 
-  /* 在手機版，預設隱藏篩選列 */
+  /* 在手機版，預設隱藏篩選條件區塊 */
   .rwd-table .filter-row {
     display: none;
     border-bottom: 1px solid #495057; /* 為篩選區塊加上底線 */
   }
 
+  /* 將表格的每一行 (tr) 變成一個區塊元素，類似卡片 */
   .rwd-table tr {
     display: block;
     margin-bottom: 1rem;
@@ -167,32 +167,34 @@ th {
     border-radius: .25rem;
   }
 
-  /* 當切換為顯示時，讓篩選列以區塊形式出現 */
+  /* 當點擊「顯示篩選條件」按鈕後，讓篩選區塊顯示出來 */
   .filters-mobile-open .rwd-table .filter-row {
     display: block;
   }
 
-  /* 讓篩選列中的儲存格垂直堆疊 */
+  /* 讓篩選區塊中的每個儲存格 (th) 垂直堆疊 */
   .rwd-table .filter-row th {
     display: block;
   }
   
+  /* 將每一個資料格 (td) 也變成區塊元素，並設定其樣式 */
   .rwd-table td {
     display: block;
-    text-align: right;
+    text-align: right; /* 讓內容靠右對齊 */
     border: none;
     border-bottom: 1px solid #dee2e6;
     position: relative;
-    padding-left: 50%;
-    white-space: normal; /* 在手機視圖中恢復自動換行 */
+    padding-left: 50%; /* 留出左邊空間給偽元素標籤 */
+    white-space: normal; /* 恢復自動換行 */
   }
 
   .rwd-table td:last-child {
-    border-bottom: 0;
+    border-bottom: 0; /* 最後一個資料格不需要底線 */
   }
 
+  /* 使用偽元素 (::before) 來顯示該行的標題 */
   .rwd-table td::before {
-    content: attr(data-label);
+    content: attr(data-label); /* 讀取 td 上的 data-label 屬性作為內容 */
     position: absolute;
     left: 0;
     width: 45%;

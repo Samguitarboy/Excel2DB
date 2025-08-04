@@ -67,74 +67,59 @@
 
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuth } from '../composables/useAuth';
+import { useAuthStore } from '../stores/auth';
 import { fetchExcelData } from '../services/api.js';
 import DataTable from '../components/DataTable.vue';
 import Pagination from '../components/Pagination.vue';
 import DetailsModal from '../components/DetailsModal.vue';
 import Toast from '../components/Toast.vue';
 
-const excelData = ref([]);
-const loading = ref(true);
-const error = ref(null);
-const columnSearchQueries = ref({});
-const sortKey = ref('');
-const sortOrder = ref('asc');
-const currentPage = ref(1);
-const itemsPerPage = ref(10);
-const jumpPage = ref(1);
-const isModalVisible = ref(false);
-const selectedRow = ref(null);
-const toast = ref({
-  show: false,
-  message: '',
-  type: 'danger'
-});
+// --- 狀態管理 (State) ---
+const excelData = ref([]); // 儲存從後端獲取的原始資料
+const loading = ref(true);   // 控制頁面初始載入狀態
+const error = ref(null);     // 儲存資料獲取失敗的錯誤訊息
 
-const router = useRouter();
-const { logout } = useAuth();
+// --- 表格功能：排序、搜尋、分頁 ---
+const sortKey = ref(''); // 目前排序的欄位
+const sortOrder = ref('asc'); // 排序順序 (asc/desc)
+const columnSearchQueries = ref({}); // 各欄位的搜尋條件
+const currentPage = ref(1); // 目前頁碼
+const itemsPerPage = ref(10); // 每頁顯示的項目數
+const jumpPage = ref(1); // 分頁跳轉輸入框的綁定值
 
-const handleLogout = () => {
-  logout();
-  router.push('/login');
-};
+// --- UI 狀態 ---
+const isModalVisible = ref(false); // 控制詳細資料彈窗的顯示
+const selectedRow = ref(null);     // 儲存被選中要查看詳細資料的行
+const toast = ref({ show: false, message: '', type: 'danger' }); // Toast 提示訊息的狀態
 
+// --- 服務 (Services) ---
+const authStore = useAuthStore();
+
+// --- 生命週期鉤子 (Lifecycle Hook) ---
 onMounted(async () => {
   try {
+    // 元件掛載後，從後端獲取資料
     excelData.value = await fetchExcelData();
   } catch (err) {
     error.value = err.message;
   } finally {
-    loading.value = false;
+    loading.value = false; // 結束載入狀態
   }
 });
 
+// --- 計算屬性 (Computed Properties) ---
+
+// 動態計算表格標頭，並過濾掉不需要顯示的欄位
 const tableHeaders = computed(() => {
-  if (excelData.value && excelData.value.length > 0) {
-    const allHeaders = Object.keys(excelData.value[0]);
-    const hiddenColumns = ['財產編號','(自)單位管控窗口', '(自)狀態'];
-    return allHeaders.filter(header => !hiddenColumns.includes(header));
-  }
-  return [];
+  if (!excelData.value || excelData.value.length === 0) return [];
+  const allHeaders = Object.keys(excelData.value[0]);
+  const hiddenColumns = ['財產編號', '(自)單位管控窗口', '(自)狀態'];
+  return allHeaders.filter(header => !hiddenColumns.includes(header));
 });
 
-watch(tableHeaders, (newHeaders) => {
-  const initialQueries = {};
-  newHeaders.forEach(header => {
-    if (header === '最後存取時間') {
-      initialQueries[header] = { operator: 'gt', value: '' };
-    } else {
-      initialQueries[header] = '';
-    }
-  });
-  columnSearchQueries.value = initialQueries;
-});
-
+// 為需要下拉選單的欄位，從資料中提取唯一的選項
 const dropdownOptions = computed(() => {
-  if (!excelData.value || excelData.value.length === 0) {
-    return {};
-  }
+  if (!excelData.value || excelData.value.length === 0) return {};
   const options = {};
   const columnsForDropdown = ['(自)分類', '(自)狀態', '(自)所屬單位'];
   columnsForDropdown.forEach(header => {
@@ -146,11 +131,13 @@ const dropdownOptions = computed(() => {
   return options;
 });
 
+// 根據搜尋條件過濾資料
 const filteredData = computed(() => {
   return excelData.value.filter(row => {
     return Object.keys(columnSearchQueries.value).every(header => {
       const query = columnSearchQueries.value[header];
       const cellValue = row[header];
+      // 特殊處理日期範圍搜尋
       if (header === '最後存取時間' && typeof query === 'object' && query.value) {
         const queryDate = new Date(query.value);
         if (isNaN(queryDate.getTime())) return true;
@@ -162,6 +149,7 @@ const filteredData = computed(() => {
         queryDate.setHours(0, 0, 0, 0);
         return query.operator === 'gt' ? cellDate >= queryDate : cellDate <= queryDate;
       }
+      // 處理一般文字搜尋
       if (typeof query === 'string' && query) {
         return String(cellValue).toLowerCase().includes(query.toLowerCase());
       }
@@ -170,10 +158,10 @@ const filteredData = computed(() => {
   });
 });
 
+// 根據排序條件對已過濾的資料進行排序
 const sortedData = computed(() => {
   if (!sortKey.value) return filteredData.value;
-  const sorted = [...filteredData.value];
-  return sorted.sort((a, b) => {
+  return [...filteredData.value].sort((a, b) => {
     const valA = a[sortKey.value];
     const valB = b[sortKey.value];
     if (valA < valB) return sortOrder.value === 'asc' ? -1 : 1;
@@ -182,18 +170,44 @@ const sortedData = computed(() => {
   });
 });
 
+// 計算總頁數
 const totalPages = computed(() => Math.ceil(sortedData.value.length / itemsPerPage.value));
 
+// 根據目前頁碼和每頁顯示數量，從已排序的資料中擷取當前頁的資料
 const paginatedData = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value;
   const end = start + itemsPerPage.value;
   return sortedData.value.slice(start, end);
 });
 
-watch(columnSearchQueries, () => { currentPage.value = 1; }, { deep: true });
-watch(itemsPerPage, () => { currentPage.value = 1; });
-watch(currentPage, (newPage) => { jumpPage.value = newPage; });
+// --- 監聽器 (Watchers) ---
 
+// 當搜尋條件改變時，重設頁碼到第一頁
+watch(columnSearchQueries, () => { currentPage.value = 1; }, { deep: true });
+// 當每頁顯示數量改變時，重設頁碼到第一頁
+watch(itemsPerPage, () => { currentPage.value = 1; });
+// 當頁碼改變時，同步更新跳轉輸入框的值
+watch(currentPage, (newPage) => { jumpPage.value = newPage; });
+// 當表格標頭計算完成後，初始化搜尋條件物件
+watch(tableHeaders, (newHeaders) => {
+  const initialQueries = {};
+  newHeaders.forEach(header => {
+    initialQueries[header] = (header === '最後存取時間') ? { operator: 'gt', value: '' } : '';
+  });
+  columnSearchQueries.value = initialQueries;
+});
+
+// --- 方法 (Methods) ---
+
+/** 處理登出 */
+const handleLogout = () => {
+  authStore.logout();
+};
+
+/**
+ * 處理排序
+ * @param {string} key - 要排序的欄位名
+ */
 function sortBy(key) {
   if (sortKey.value === key) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
@@ -201,47 +215,70 @@ function sortBy(key) {
     sortKey.value = key;
     sortOrder.value = 'asc';
   }
-  currentPage.value = 1;
+  currentPage.value = 1; // 排序後回到第一頁
 }
 
+/**
+ * 處理分頁切換
+ * @param {number} page - 目標頁碼
+ */
 function changePage(page) {
   if (page >= 1 && page <= totalPages.value) {
     currentPage.value = page;
   }
 }
 
+/** 處理分頁跳轉 */
 function goToPage() {
   const page = Number(jumpPage.value);
   if (page >= 1 && page <= totalPages.value) {
     currentPage.value = page;
   } else {
     showToast(`請輸入 1 到 ${totalPages.value} 之間的頁碼。`);
-    jumpPage.value = currentPage.value;
+    jumpPage.value = currentPage.value; // 還原輸入框的值
   }
 }
 
+/**
+ * 更新搜尋條件 (由 DataTable 元件觸發)
+ * @param {object} queries - 最新的搜尋條件物件
+ */
 function updateSearchQueries(queries) {
   columnSearchQueries.value = queries;
 }
 
+/**
+ * 更新每頁顯示數量 (由 Pagination 元件觸發)
+ * @param {number} value - 新的每頁顯示數量
+ */
 function updateItemsPerPage(value) {
   itemsPerPage.value = value;
 }
 
+/**
+ * 顯示詳細資料彈窗
+ * @param {object} row - 要顯示的行資料
+ */
 function showDetails(row) {
   selectedRow.value = row;
   isModalVisible.value = true;
 }
 
+/** 關閉詳細資料彈窗 */
 function closeModal() {
   isModalVisible.value = false;
   selectedRow.value = null;
 }
 
+/**
+ * 顯示 Toast 提示訊息
+ * @param {string} message - 要顯示的訊息
+ * @param {string} [type='danger'] - 提示類型 (例如: danger, success)
+ */
 function showToast(message, type = 'danger') {
   toast.value.message = message;
   toast.value.type = type;
-  toast.value.show = false;
+  toast.value.show = false; // 先隱藏再顯示，確保動畫效果
   nextTick(() => {
     toast.value.show = true;
   });
