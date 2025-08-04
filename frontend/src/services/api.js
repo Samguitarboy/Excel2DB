@@ -88,6 +88,7 @@ export function loginUser(credentials) {
  * @returns {Promise<Array>} 返回包含資料的陣列。
  */
 export function fetchExcelData() {
+  console.log('Fetching Excel data...');
   return apiClient.get('/excel-data');
 }
 
@@ -108,4 +109,21 @@ export function fetchPublicUnits() {
  */
 export function fetchPublicDataByUnit(unit) {
   return publicApiClient.get('/public/data', { params: { unit } });
+}
+
+/**
+ * 取得分類為「隨身碟」的保管人及單位管控窗口列表 (無需認證)。
+ * @returns {Promise<Object>} 返回包含 custodians 和 contactPersons 陣列的物件。
+ */
+export function fetchUsbDeviceContacts() {
+  return publicApiClient.get('/public/usb-contacts');
+}
+
+/**
+ * 提交新的可攜式儲存媒體申請表單 (無需認證)。
+ * @param {Object} applicationData - 申請表單的資料。
+ * @returns {Promise<Object>} 返回後端的回應。
+ */
+export function submitApplication(applicationData) {
+  return publicApiClient.post('/applications', applicationData);
 }

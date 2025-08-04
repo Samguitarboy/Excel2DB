@@ -9,7 +9,7 @@
       aria-atomic="true"
     >
       <div class="d-flex">
-        <div class="toast-body">
+        <div class="toast-body" style="white-space: pre-wrap;"> <!-- 添加 style 屬性 -->
           {{ message }}
         </div>
         <button 
@@ -49,8 +49,8 @@ onMounted(() => {
   if (toastElement.value) {
     // 初始化 Bootstrap Toast 實例
     toastInstance = new BsToast(toastElement.value, {
-      autohide: true, // 自動隱藏
-      delay: 3000     // 3 秒後自動隱藏
+      autohide: false, // 禁用自動隱藏
+      // delay: 3000     // 移除 delay 選項
     });
 
     // 監聽 Bootstrap 原生的隱藏事件

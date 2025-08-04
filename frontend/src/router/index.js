@@ -8,6 +8,7 @@ import { useGuestStore } from '../stores/guest'; // 引入 useGuestStore
 const Home = () => import('../views/Home.vue');
 const Login = () => import('../views/Login.vue');
 const GuestLogin = () => import('../views/GuestLogin.vue'); // 新增的來賓登入頁面
+const ApplyForm = () => import('../views/Applyform.vue'); // 新增的申請表單頁面
 
 const routes = [
   {
@@ -26,6 +27,12 @@ const routes = [
     name: 'GuestLogin',
     component: GuestLogin,
     // 這個路由不需要認證，所以沒有 requiresAuth: true
+  },
+  {
+    path: '/apply',
+    name: 'ApplyForm',
+    component: ApplyForm,
+    // 申請表單頁面無需認證
   },
 ];
 

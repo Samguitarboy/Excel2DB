@@ -5,9 +5,12 @@
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <h1>CEPP-可攜式儲存媒體使用清單列表</h1>
-            <button class="btn btn-outline-danger" @click="handleLogout">
-              {{ guestStore.isGuestMode ? '返回單位選擇' : '登出' }}
-            </button>
+            <div>
+              <router-link v-if="guestStore.isGuestMode" to="/apply" class="btn btn-outline-success me-2">新式加密隨身碟申請</router-link>
+              <button class="btn btn-outline-danger" @click="handleLogout">
+                {{ guestStore.isGuestMode ? '返回單位選擇' : '登出' }}
+              </button>
+            </div>
           </div>
           <div class="card-body">
             <div v-if="loading" class="text-center">
@@ -103,19 +106,26 @@ const guestStore = useGuestStore(); // 獲取 guest store 實例
 
 // --- 生命週期鉤子 (Lifecycle Hook) ---
 onMounted(async () => {
+  console.log('Home.vue: onMounted hook triggered.');
   try {
     // 根據是否為來賓模式，獲取不同的資料
     if (guestStore.isGuestMode) {
+      console.log('Home.vue: Fetching public data for guest mode...');
       excelData.value = await fetchPublicDataByUnit(guestStore.guestUnit);
       // 在來賓模式下，強制設定 (自)所屬單位 的搜尋條件
       columnSearchQueries.value['(自)所屬單位'] = guestStore.guestUnit;
+      console.log('Home.vue: Public data fetched.', excelData.value.length, 'items.');
     } else {
+      console.log('Home.vue: Fetching Excel data for admin...');
       excelData.value = await fetchExcelData();
+      console.log('Home.vue: Excel data fetched.', excelData.value.length, 'items.');
     }
   } catch (err) {
+    console.error('Home.vue: Error fetching data:', err);
     error.value = err.message;
   } finally {
     loading.value = false; // 結束載入狀態
+    console.log('Home.vue: Loading state set to false.');
   }
 });
 
