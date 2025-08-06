@@ -1,28 +1,31 @@
 <template>
-  <div class="login-container">
-    <div class="card shadow">
-      <div class="card-body p-4">
-        <h3 class="card-title text-center mb-4">可攜式儲存媒體使用情形</h3>
-        <form @submit.prevent="handleLogin">
-          <div v-if="error" class="alert alert-danger">{{ error }}</div>
-          <div class="mb-3">
-            <label for="username" class="form-label">管理者名稱</label>
-            <input type="text" class="form-control" id="username" v-model="username" required>
-          </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">密碼</label>
-            <input type="password" class="form-control" id="password" v-model="password" required>
-          </div>
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary" :disabled="loading">
-              <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              {{ loading ? '登入中...' : '登入' }}
-            </button>
-          </div>
-          <div class="text-center mt-3">
-            <router-link to="/guest-login" class="text-decoration-none">或以來賓身分查看特定單位</router-link>
-          </div>
-        </form>
+  <div>
+    <AnnouncementModal v-if="showAnnouncement" @close="handleAnnouncementClose" />
+    <div v-if="!showAnnouncement" class="login-container">
+      <div class="card shadow">
+        <div class="card-body p-4">
+          <h3 class="card-title text-center mb-4">可攜式儲存媒體使用情形</h3>
+          <form @submit.prevent="handleLogin">
+            <div v-if="error" class="alert alert-danger">{{ error }}</div>
+            <div class="mb-3">
+              <label for="username" class="form-label">管理者名稱</label>
+              <input type="text" class="form-control" id="username" v-model="username" required>
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">密碼</label>
+              <input type="password" class="form-control" id="password" v-model="password" required>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary" :disabled="loading">
+                <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                {{ loading ? '登入中...' : '登入' }}
+              </button>
+            </div>
+            <div class="text-center mt-3">
+              <router-link to="/guest-login" class="text-decoration-none">或以來賓身分查看特定單位</router-link>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -33,16 +36,22 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { loginUser as apiLogin } from '../services/api';
 import { useAuthStore } from '../stores/auth';
+import AnnouncementModal from '../components/AnnouncementModal.vue';
 
 // -- state --
 const username = ref('');
 const password = ref('');
 const error = ref(null); // 用於儲存登入失敗的錯誤訊息
 const loading = ref(false); // 用於控制登入按鈕的禁用狀態和顯示文字
+const showAnnouncement = ref(true); // 控制公告是否顯示
 
 // -- services --
 const router = useRouter();
 const authStore = useAuthStore();
+
+const handleAnnouncementClose = () => {
+  showAnnouncement.value = false;
+};
 
 /**
  * 處理登入邏輯

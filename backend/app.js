@@ -14,7 +14,7 @@ const applicationRoutes = require('./routes/applicationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
 const app = express(); // 創建 Express 應用程式實例
-const port = process.env.PORT || 3000; // 設定伺服器監聽的埠號，預設為 3000
+const port = process.env.PORT; // 設定伺服器監聽的埠號，預設為 3000
 
 // --- 中介軟體 (Middleware) ---
 app.use(express.json()); // 解析 JSON 格式的請求體

@@ -135,7 +135,7 @@ onMounted(async () => {
 const tableHeaders = computed(() => {
   if (!excelData.value || excelData.value.length === 0) return [];
   const allHeaders = Object.keys(excelData.value[0]);
-  let hiddenColumns = ['財產編號', '(自)單位管控窗口', '(自)狀態'];
+  let hiddenColumns = ['財產編號', '(自)單位管控窗口', '(自)備註' ,'(自)狀態'];
   
   // 在來賓模式下，隱藏「(自)所屬單位」欄位
   if (guestStore.isGuestMode) {

@@ -51,7 +51,10 @@ const guestStore = useGuestStore();
 
 onMounted(async () => {
   try {
-    units.value = await fetchPublicUnits();
+    const fetchedUnits = await fetchPublicUnits();
+    // 使用 localeCompare 進行排序
+    fetchedUnits.sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    units.value = fetchedUnits;
     loadingUnits.value = false;
   } catch (err) {
     error.value = '無法載入單位列表，請稍後再試。';
