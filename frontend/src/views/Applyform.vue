@@ -60,7 +60,9 @@
 
           <div class="d-flex justify-content-between mt-4">
             <router-link to="/" class="btn btn-secondary">返回列表</router-link>
-            <button type="button" class="btn btn-info" @click="showUnitDataTableToast">顯示原先隨身碟列表</button>
+            <button type="button" class="btn btn-info" @click="toggleUnitDataTableFilter">
+              {{ isFiltered ? '顯示全部列表' : '僅顯示隨身碟列表' }}
+            </button>
             <button type="submit" class="btn btn-primary">提交申請</button>
           </div>
         </form>
@@ -101,6 +103,10 @@ const toast = ref({ show: false, message: '', type: 'info' });
 
 // 儲存從後端獲取的原始資料
 const unitExcelData = ref([]); 
+
+// --- 新增狀態 ---
+// 用於追蹤是否已篩選隨身碟列表
+const isFiltered = ref(false); 
 
 // --- 生命週期鉤子 (Lifecycle Hook) ---
 onMounted(async () => {
@@ -177,19 +183,32 @@ function showToast(message, type = 'info') {
 }
 
 /**
- * 顯示原先隨身碟列表的 Toast 訊息
+ * 顯示或切換原先隨身碟列表的 Toast 訊息
  */
-const showUnitDataTableToast = () => {
-  let message = '原先隨身碟列表：\n\n';
-  if (unitExcelData.value.length > 0) {
-    unitExcelData.value.forEach((row, index) => {
+const toggleUnitDataTableFilter = () => {
+  isFiltered.value = !isFiltered.value; // 切換篩選狀態
+  
+  let dataToShow = unitExcelData.value;
+  let title = '原單位所有資產列表：\n\n';
+
+  if (isFiltered.value) {
+    title = '原單位隨身碟列表：\n\n';
+    dataToShow = unitExcelData.value.filter(row => 
+      row['(自)分類'] === '隨身碟' || row['(自)分類'] === '加密隨身碟'
+    );
+  }
+
+  let message = title;
+  if (dataToShow.length > 0) {
+    dataToShow.forEach((row, index) => {
       message += `--- ${index + 1} ---\n`;
       message += `- 資產名稱: ${row['資產名稱'] || '無'}\n`;
+      message += `- (自)分類: ${row['(自)分類'] || '無'}\n`;
       message += `- 保管人: ${row['保管人'] || '無'}\n`;
       message += `- 單位管控窗口: ${row['(自)單位管控窗口'] || '無'}\n`;
     });
   } else {
-    message += '無資料';
+    message += '無符合條件的資料';
   }
 
   showToast(message, 'info');
