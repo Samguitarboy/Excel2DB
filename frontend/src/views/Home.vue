@@ -87,7 +87,7 @@ const loading = ref(true);   // 控制頁面初始載入狀態
 const error = ref(null);     // 儲存資料獲取失敗的錯誤訊息
 
 // --- 表格功能：排序、搜尋、分頁 ---
-const sortKey = ref(''); // 目前排序的欄位
+const sortKey = ref('最後存取時間'); // 目前排序的欄位
 const sortOrder = ref('asc'); // 排序順序 (asc/desc)
 const columnSearchQueries = ref({}); // 各欄位的搜尋條件
 const currentPage = ref(1); // 目前頁碼
@@ -194,9 +194,26 @@ const filteredData = computed(() => {
 // 根據排序條件對已過濾的資料進行排序
 const sortedData = computed(() => {
   if (!sortKey.value) return filteredData.value;
+
   return [...filteredData.value].sort((a, b) => {
-    const valA = a[sortKey.value];
-    const valB = b[sortKey.value];
+    let valA = a[sortKey.value];
+    let valB = b[sortKey.value];
+
+    // 對「最後存取時間」進行特殊處理，確保 null/undefined 值總是被視為最舊的
+    if (sortKey.value === '最後存取時間') {
+      const aHasDate = valA != null;
+      const bHasDate = valB != null;
+
+      if (sortOrder.value === 'asc') {
+        if (!aHasDate && bHasDate) return -1; // 沒日期的排前面
+        if (aHasDate && !bHasDate) return 1;
+      } else { // 'desc'
+        if (!aHasDate && bHasDate) return 1; // 沒日期的排後面
+        if (aHasDate && !bHasDate) return -1;
+      }
+    }
+
+    // 一般比較
     if (valA < valB) return sortOrder.value === 'asc' ? -1 : 1;
     if (valA > valB) return sortOrder.value === 'asc' ? 1 : -1;
     return 0;
