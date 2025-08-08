@@ -112,6 +112,23 @@ export function fetchPublicDataByUnit(unit) {
 }
 
 /**
+ * 從後端 API 獲取指定的多個單位的 Excel 資料 (無需認證)。
+ * @param {Array<string>} units - 要查詢的單位名稱陣列。
+ * @returns {Promise<Array>} 返回包含這些單位資料的陣列。
+ */
+export function fetchPublicDataByUnits(units) {
+  return publicApiClient.post('/public/data-by-units', { units });
+}
+
+/**
+ * 取得主要單位與其管控窗口的對應關係 (無需認證)。
+ * @returns {Promise<Object>} 返回一個物件，key 是主要單位，value 是窗口。
+ */
+export function fetchDepartmentContacts() {
+  return publicApiClient.get('/public/department-contacts');
+}
+
+/**
  * 取得分類為「隨身碟」的保管人及單位管控窗口列表 (無需認證)。
  * @returns {Promise<Object>} 返回包含 custodians 和 contactPersons 陣列的物件。
  */

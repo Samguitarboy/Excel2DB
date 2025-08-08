@@ -9,6 +9,7 @@ const Home = () => import('../views/Home.vue');
 const Login = () => import('../views/Login.vue');
 const GuestLogin = () => import('../views/GuestLogin.vue'); // 新增的來賓登入頁面
 const ApplyForm = () => import('../views/Applyform.vue'); // 新增的申請表單頁面
+const Dashboard = () => import('../views/Dashboard.vue'); // 儀表板頁面
 
 const routes = [
   {
@@ -16,6 +17,12 @@ const routes = [
     name: 'Home',
     component: Home,
     meta: { requiresAuth: true }, // 這個 meta 欄位用來標識需要登入才能訪問的路由
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: Dashboard,
+    meta: { requiresAuth: true },
   },
   {
     path: '/login',
@@ -49,21 +56,20 @@ const router = createRouter({
  */
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
-  const guestStore = useGuestStore(); // 獲取 guest store 實例
+  const guestStore = useGuestStore();
 
-  // 情況1: 目標路由需要認證，但使用者未登入且不是來賓模式
-  if (to.meta.requiresAuth && !authStore.isAuthenticated && !guestStore.isGuestMode) {
-    // 將使用者導向登入頁
+  const isAuthenticated = authStore.isAuthenticated;
+  const isGuest = guestStore.isGuestMode;
+  const requiresAuth = to.meta.requiresAuth;
+
+  if (requiresAuth && !isAuthenticated && !isGuest) {
+    // 如果路由需要認證，但使用者既不是管理員也不是來賓，則導向登入頁
     next({ name: 'Login' });
-  
-  // 情況2: 使用者已登入，但試圖訪問登入頁
-  } else if (to.name === 'Login' && authStore.isAuthenticated) {
-    // 將使用者導向首頁，避免重複登入
-    next({ name: 'Home' });
-
-  // 情況3: 其他所有情況 (無需認證的頁面，或已登入使用者訪問需認證的頁面，或來賓模式訪問需認證的頁面)
+  } else if (to.name === 'Login' && isAuthenticated) {
+    // 如果已登入的管理員試圖訪問登入頁，將他們導向儀表板
+    next({ name: 'Dashboard' });
   } else {
-    // 允許路由繼續
+    // 其他所有情況（例如：訪問不需認證的頁面，或已授權的使用者訪問頁面）都允許通過
     next();
   }
 });

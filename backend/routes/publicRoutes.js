@@ -42,6 +42,29 @@ router.get('/data', async (req, res, next) => {
   }
 });
 
+// 取得特定多個單位的 Excel 資料（無需 JWT 驗證）
+router.post('/data-by-units', async (req, res, next) => {
+  if (!req.app.locals.cachedExcelData) {
+    return next(new AppError('Excel data not loaded.', 500));
+  }
+  const { units } = req.body;
+
+  if (!Array.isArray(units)) {
+    return next(new AppError('Invalid input: units must be an array.', 400));
+  }
+
+  try {
+    const unitSet = new Set(units.map(u => u.toString().trim()));
+    const filteredRows = req.app.locals.cachedExcelData.filter(row => {
+      return row['(自)所屬單位'] && unitSet.has(row['(自)所屬單位'].toString().trim());
+    });
+    res.json(filteredRows);
+  } catch (error) {
+    logger.error('❌ Error processing filtered data from cached data for multiple units:', error);
+    next(new AppError('Error fetching filtered data from cached data', 500));
+  }
+});
+
 // 取得分類為「隨身碟」的保管人、單位管控窗口及資產名稱列表（無需 JWT 驗證）
 router.get('/usb-contacts', async (req, res, next) => {
   if (!req.app.locals.cachedExcelData) {

@@ -3,7 +3,7 @@
     <div class="modal-content shadow">
       <h4 class="modal-title">公告</h4>
       <div class="announcement-body" @scroll="handleScroll" ref="announcementBody">
-        <p><strong>最後更新日期：2025年8月7日</strong></p>
+        <p><strong>最後更新日期：2025年8月8日</strong></p>
         <div class="note"><p>在您使用本網站之前，請仔細閱讀以下資訊。<br>使用後，即表示您已閱讀、了解並同意接受本公告之所有內容。</p></div>
         <p><br>「可攜式儲存媒體」係指任何由本廠資訊室統一控管，派發予因公務上有資料儲存及傳遞需求之單位或個人，具備「資料儲存能力」且「可隨身攜帶」的硬體設備。包括但不限於外接式硬碟、抽取式硬碟，外接式燒錄機、隨身碟、磁帶、磁片、記憶卡、光碟片等。</p>
         <h5><br><strong>為避免公務資料外洩及確保資訊安全，<br>使用可攜式儲存媒體時，請務必確實遵守以下事項：</strong></h5>

@@ -5,23 +5,26 @@
         <h3 class="card-title text-center mb-4">以來賓身分查看</h3>
         <div v-if="error" class="alert alert-danger">{{ error }}</div>
         <div class="mb-3">
-          <label for="unitSelect" class="form-label">請選擇單位</label>
+          <label for="unitSelect" class="form-label">請選擇主要單位</label>
           <select
             id="unitSelect"
             class="form-select"
-            v-model="selectedUnit"
+            v-model="selectedMajorUnit"
             :disabled="loadingUnits"
           >
             <option value="" disabled>-- 請選擇 --</option>
-            <option v-for="unit in units" :key="unit" :value="unit">{{ unit }}</option>
+            <option v-for="unit in majorUnits" :key="unit" :value="unit">{{ unit }}</option>
           </select>
+        </div>
+        <div v-if="contactPerson" class="mt-2 text-muted">
+          <p><strong>新款加密隨身碟申請，<br>請由單位窗口 {{ contactPerson }} 負責填單！</strong></p>
         </div>
         <div class="d-grid">
           <button
             type="button"
             class="btn btn-primary"
             @click="handleGuestLogin"
-            :disabled="!selectedUnit || loadingUnits"
+            :disabled="!selectedMajorUnit || loadingUnits"
           >
             <span v-if="loadingUnits" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             {{ loadingUnits ? '載入單位...' : '查看該單位使用情形' }}
@@ -36,36 +39,55 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetchPublicUnits } from '../services/api.js';
 import { useGuestStore } from '../stores/guest.js';
+import departmentHierarchy from '../data/departments.json';
 
-const units = ref([]);
-const selectedUnit = ref('');
+const majorUnits = ref([]);
+const selectedMajorUnit = ref('');
+const contactPerson = ref('');
 const error = ref(null);
-const loadingUnits = ref(true);
+const loadingUnits = ref(false);
 
 const router = useRouter();
 const guestStore = useGuestStore();
 
-onMounted(async () => {
+onMounted(() => {
   try {
-    const fetchedUnits = await fetchPublicUnits();
-    // 使用 localeCompare 進行排序
-    fetchedUnits.sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-    units.value = fetchedUnits;
-    loadingUnits.value = false;
+    // Extract major departments from the imported JSON
+    majorUnits.value = departmentHierarchy.map(dept => dept.department).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   } catch (err) {
     error.value = '無法載入單位列表，請稍後再試。';
-    loadingUnits.value = false;
+  }
+});
+
+watch(selectedMajorUnit, (newUnit) => {
+  if (newUnit) {
+    const selectedDept = departmentHierarchy.find(
+      (dept) => dept.department === newUnit
+    );
+    contactPerson.value = selectedDept ? selectedDept.contactperson : '';
+  } else {
+    contactPerson.value = '';
   }
 });
 
 const handleGuestLogin = () => {
-  if (selectedUnit.value) {
-    guestStore.setGuestMode(selectedUnit.value);
-    router.push('/'); // 跳轉到 Home.vue
+  if (selectedMajorUnit.value) {
+    const selectedDept = departmentHierarchy.find(
+      (dept) => dept.department === selectedMajorUnit.value
+    );
+    
+    if (selectedDept && selectedDept.sub_departments.length > 0) {
+      // Store the array of sub-departments in the guest store
+      guestStore.setGuestMode(selectedDept.sub_departments);
+      router.push('/'); // Redirect to Home.vue
+    } else {
+      // Handle case where the selected major unit has no sub-departments
+      // or is not found, though based on the JSON this is unlikely.
+      error.value = '該主要單位底下沒有可查詢的子單位。';
+    }
   }
 };
 </script>

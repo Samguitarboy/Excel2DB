@@ -1,0 +1,16 @@
+[
+  {
+    "department": "AAA",
+    "sub_departments": [
+      "AAA"
+    ],
+    "contactperson": "A"
+  },
+  {
+    "department": "BBB",
+    "sub_departments": [
+      "BBB"
+    ],
+    "contactperson": "B"
+  }
+]

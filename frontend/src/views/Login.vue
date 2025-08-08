@@ -21,8 +21,8 @@
                 {{ loading ? '登入中...' : '登入' }}
               </button>
             </div>
-            <div class="text-center mt-3">
-              <router-link to="/guest-login" class="text-decoration-none">或以來賓身分查看特定單位</router-link>
+            <div class="d-grid mt-2">
+              <router-link to="/guest-login" class="btn btn-outline-secondary">或以來賓身分查看特定單位</router-link>
             </div>
           </form>
         </div>
@@ -70,8 +70,8 @@ const handleLogin = async () => {
     // 登入成功後，使用 auth store 來儲存 token
     authStore.setToken(response.token);
 
-    // 使用 router 導向到首頁
-    router.push('/');
+    // 使用 router 導向到儀表板
+    router.push('/dashboard');
 
   } catch (err) {
     // 如果 API 呼叫失敗，顯示錯誤訊息
