@@ -1,9 +1,20 @@
 <template>
   <div class="container-fluid mt-4">
+    <!-- Loading Overlay for status update -->
+    <div v-if="isUpdatingStatus" class="loading-overlay">
+      <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+        <span class="visually-hidden">正在更新...</span>
+      </div>
+      <p class="mt-3 fs-5 text-light">正在更新申請狀態，請稍候...</p>
+    </div>
+
     <!-- Header Controls -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <!-- Panel Toggles -->
-      <div class="btn-group" role="group" aria-label="Toggle dashboard panels">
+      <div v-if="!guestStore.isGuestMode" class="btn-group" role="group" aria-label="Toggle dashboard panels">
+        <input type="checkbox" class="btn-check" id="toggle-review" v-model="panelVisibility.review" autocomplete="off">
+        <label class="btn btn-outline-secondary" for="toggle-review">新款隨身碟申請審核列表</label>
+
         <input type="checkbox" class="btn-check" id="toggle-category" v-model="panelVisibility.category" autocomplete="off">
         <label class="btn btn-outline-secondary" for="toggle-category">可攜式儲存媒體-各種類總數統計</label>
 
@@ -33,6 +44,56 @@
       {{ error }}
     </div>
     <div v-if="!loading && !error" class="row">
+      <!-- Section 0: Application Review List (Admin only) -->
+      <div v-if="panelVisibility.review && !guestStore.isGuestMode" class="col-12 mb-4">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="card-title mb-0">新款隨身碟申請列表</h5>
+          </div>
+          <div class="card-body">
+            <div v-if="reviewLoading" class="text-center">
+              <LoadingSpinner />
+              <p>正在載入申請列表...</p>
+            </div>
+            <div v-else-if="reviewError" class="alert alert-danger">
+              {{ reviewError }}
+            </div>
+            <div v-else-if="reviewApplications.length > 0" class="table-responsive">
+              <table class="table table-sm table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th>所屬單位</th>
+                    <th>組別/股別</th>
+                    <th>保管人</th>
+                    <th>申請狀態</th>
+                    <th>申請原因</th>
+                    <th>最後更新時間</th>
+                    <th class="text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="app in reviewApplications" :key="app.id">
+                    <td>{{ app.affiliatedUnit }}</td>
+                    <td>{{ app.subUnit }}</td>
+                    <td>{{ app.custodian }}</td>
+                    <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
+                    <td>{{ app.reason || '無' }}</td>
+                    <td>{{ formatDateTime(app.updatedAt) }}</td>
+                    <td class="text-center">
+                      <template v-if="app.status === 'pending'">
+                        <button class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
+                        <button class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
+                      </template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-else class="text-center text-muted">目前沒有待審核的申請。</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Section 1: Category Distribution -->
       <div v-if="panelVisibility.category" class="col-xl-6 col-lg-12 mb-4">
         <div class="card h-100">
@@ -110,7 +171,7 @@
       <div v-if="panelVisibility.accessTime" class="col-12 mb-4">
         <div class="card">
           <div class="card-header">
-            <h5 class="card-title mb-0">超過X天未存取之隨身碟/加密隨身碟數量統計</h5>
+            <h5 class="card-title mb-0">超過{{ inactiveDays }}天未存取之隨身碟/加密隨身碟數量統計</h5>
           </div>
           <div class="card-body">
             <div class="row justify-content-center align-items-center mb-3">
@@ -201,7 +262,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useGuestStore } from '../stores/guest';
-import { fetchExcelData, fetchPublicDataByUnit } from '../services/api';
+import { fetchExcelData, fetchPublicDataByUnit, getApplications, updateApplicationStatus } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import departmentHierarchy from '../data/departments.json';
 
@@ -210,13 +271,20 @@ const guestStore = useGuestStore();
 
 const loading = ref(true);
 const error = ref(null);
-const applications = ref([]);
+const excelApplications = ref([]);
 const expandedDepartments = ref({});
 const panelVisibility = ref({
+  review: true,
   category: false,
   department: false,
   accessTime: true,
 });
+
+// --- State for Review Panel ---
+const reviewApplications = ref([]);
+const reviewLoading = ref(true);
+const reviewError = ref(null);
+const isUpdatingStatus = ref(false);
 
 const toggleDepartment = (department) => {
   expandedDepartments.value[department] = !expandedDepartments.value[department];
@@ -226,9 +294,9 @@ const toggleDepartment = (department) => {
 onMounted(async () => {
   try {
     if (guestStore.isGuestMode) {
-      applications.value = await fetchPublicDataByUnit(guestStore.guestUnit);
+      excelApplications.value = await fetchPublicDataByUnit(guestStore.guestUnit);
     } else {
-      applications.value = await fetchExcelData();
+      excelApplications.value = await fetchExcelData();
     }
   } catch (err) {
     error.value = '無法載入資料，請稍後再試。';
@@ -236,11 +304,86 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+
+  if (!guestStore.isGuestMode) {
+    try {
+      const apps = await getApplications();
+      // 依最後更新時間遞增排序
+      apps.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+      reviewApplications.value = apps;
+    } catch (err) {
+      reviewError.value = '無法載入申請審核列表。';
+      console.error(err);
+    } finally {
+      reviewLoading.value = false;
+    }
+  }
 });
+
+// --- Methods for Review Panel ---
+const updateStatus = async (id, status) => {
+  isUpdatingStatus.value = true;
+  try {
+    // 確保載入畫面至少顯示 1 秒，以提供更好的使用者體驗
+    const delay = new Promise(resolve => setTimeout(resolve, 1000));
+    const [updatedApp] = await Promise.all([
+      updateApplicationStatus(id, status),
+      delay
+    ]);
+
+    const index = reviewApplications.value.findIndex(app => app.id === id);
+    if (index !== -1) {
+      reviewApplications.value[index] = updatedApp.application;
+      // 更新後重新排序以維持順序
+      reviewApplications.value.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+    }
+  } catch (err) {
+    reviewError.value = `更新申請狀態失敗 (ID: ${id})，請稍後再試。`;
+    console.error(err);
+  } finally {
+    isUpdatingStatus.value = false;
+  }
+};
+
+const translateStatus = (status) => {
+  const statusMap = {
+    pending: '審核中',
+    approved: '已核准',
+    rejected: '已拒絕',
+    withdrawn: '已撤回',
+  };
+  return statusMap[status] || status;
+};
+
+const statusClass = (status) => {
+  const classMap = {
+    pending: 'badge bg-warning text-dark',
+    approved: 'badge bg-success',
+    rejected: 'badge bg-danger',
+    withdrawn: 'badge bg-secondary',
+  };
+  return classMap[status] || 'badge bg-secondary';
+};
+
+const formatDateTime = (isoString) => {
+  if (!isoString) return 'N/A';
+  try {
+    return new Date(isoString).toLocaleString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch (e) {
+    return '無效日期';
+  }
+};
 
 // -- Category Data Calculation --
 const categoryTableData = computed(() => {
-  const counts = applications.value.reduce((acc, item) => {
+  const counts = excelApplications.value.reduce((acc, item) => {
     const category = item['(自)分類'] || '未分類';
     acc[category] = (acc[category] || 0) + 1;
     return acc;
@@ -254,7 +397,7 @@ const categoryTableData = computed(() => {
 // -- Department Table Data --
 const departmentTableData = computed(() => {
   const usbTypes = ['隨身碟', '加密隨身碟'];
-  const departmentData = applications.value
+  const departmentData = excelApplications.value
     .filter(item => usbTypes.includes(item['(自)分類']))
     .reduce((acc, item) => {
       const department = item['(自)所屬單位'] || '未分配';
@@ -328,7 +471,7 @@ const inactiveUsbList = computed(() => {
   thresholdDate.setDate(thresholdDate.getDate() - inactiveDays.value);
 
   const usbTypes = ['隨身碟', '加密隨身碟'];
-  const filtered = applications.value.filter(item => {
+  const filtered = excelApplications.value.filter(item => {
     if (!usbTypes.includes(item['(自)分類'])) {
       return false;
     }
@@ -419,5 +562,18 @@ const inactiveUsbCounts = computed(() => {
 .range-slider-labels span {
   position: absolute;
   transform: translateX(-50%);
+}
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
 }
 </style>

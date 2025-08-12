@@ -22,7 +22,7 @@
               </button>
             </div>
             <div class="d-grid mt-2">
-              <router-link to="/guest-login" class="btn btn-outline-secondary">或以來賓身分查看特定單位</router-link>
+              <router-link to="/guest-login" class="btn btn-outline-secondary">廠內同仁查詢所屬單位使用情形</router-link>
             </div>
           </form>
         </div>

@@ -10,6 +10,7 @@ const Login = () => import('../views/Login.vue');
 const GuestLogin = () => import('../views/GuestLogin.vue'); // 新增的來賓登入頁面
 const ApplyForm = () => import('../views/Applyform.vue'); // 新增的申請表單頁面
 const Dashboard = () => import('../views/Dashboard.vue'); // 儀表板頁面
+const MyApplications = () => import('../views/MyApplications.vue'); // 新增的申請紀錄頁面
 
 const routes = [
   {
@@ -40,6 +41,11 @@ const routes = [
     name: 'ApplyForm',
     component: ApplyForm,
     // 申請表單頁面無需認證
+  },
+  {
+    path: '/my-applications',
+    name: 'MyApplications',
+    component: MyApplications,
   },
 ];
 

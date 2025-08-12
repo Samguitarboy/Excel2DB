@@ -2,10 +2,10 @@
   <div class="login-container">
     <div class="card shadow">
       <div class="card-body p-4">
-        <h3 class="card-title text-center mb-4">以來賓身分查看</h3>
+        <h3 class="card-title text-center mb-4">可攜式儲存媒體使用情形</h3>
         <div v-if="error" class="alert alert-danger">{{ error }}</div>
         <div class="mb-3">
-          <label for="unitSelect" class="form-label">請選擇主要單位</label>
+          <label for="unitSelect" class="form-label">請選擇所屬單位</label>
           <select
             id="unitSelect"
             class="form-select"
@@ -17,7 +17,7 @@
           </select>
         </div>
         <div v-if="contactPerson" class="mt-2 text-muted">
-          <p><strong>新款加密隨身碟申請，<br>請由單位窗口 {{ contactPerson }} 負責填單！</strong></p>
+          <p><strong>新款加密隨身碟~<br>請由單位窗口 {{ contactPerson }} 負責申請！</strong></p>
         </div>
         <div class="d-grid">
           <button
@@ -27,7 +27,7 @@
             :disabled="!selectedMajorUnit || loadingUnits"
           >
             <span v-if="loadingUnits" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            {{ loadingUnits ? '載入單位...' : '查看該單位使用情形' }}
+            {{ loadingUnits ? '載入單位...' : '查詢該單位使用情形' }}
           </button>
         </div>
         <div class="text-center mt-3">
@@ -80,12 +80,10 @@ const handleGuestLogin = () => {
     );
     
     if (selectedDept && selectedDept.sub_departments.length > 0) {
-      // Store the array of sub-departments in the guest store
-      guestStore.setGuestMode(selectedDept.sub_departments);
+      // 傳遞主要部門名稱和子單位陣列到 store
+      guestStore.setGuestMode(selectedMajorUnit.value, selectedDept.sub_departments);
       router.push('/'); // Redirect to Home.vue
     } else {
-      // Handle case where the selected major unit has no sub-departments
-      // or is not found, though based on the JSON this is unlikely.
       error.value = '該主要單位底下沒有可查詢的子單位。';
     }
   }

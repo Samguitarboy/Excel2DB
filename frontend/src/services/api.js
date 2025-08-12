@@ -144,3 +144,30 @@ export function fetchUsbDeviceContacts() {
 export function submitApplication(applicationData) {
   return publicApiClient.post('/applications', applicationData);
 }
+
+  /**
+   * 取得某組別/股別的申請紀錄
+   * @param {string} unit - 組別/股別名稱
+   * @returns {Promise<Array>} 申請紀錄陣列
+   */
+  export function fetchMyApplications(unit) {
+    return publicApiClient.get(`/applications/unit/${unit}`);
+  }
+
+  /**
+   * 取得所有申請（管理者用）
+   * @returns {Promise<Array>} 申請紀錄陣列
+   */
+  export function getApplications() {
+    return publicApiClient.get('/applications');
+  }
+
+  /**
+   * 更新申請狀態（管理者用）
+   * @param {string} id - 申請ID
+   * @param {string} status - 新狀態
+   * @returns {Promise<Object>} 回應
+   */
+  export function updateApplicationStatus(id, status) {
+    return publicApiClient.patch(`/applications/${id}/status`, { status });
+  }

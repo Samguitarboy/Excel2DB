@@ -9,13 +9,22 @@
       aria-atomic="true"
     >
       <div class="d-flex">
-        <div class="toast-body" style="white-space: pre-wrap;"> <!-- 添加 style 屬性 -->
-          {{ message }}
+        <div class="toast-body">
+          <div class="content-wrapper">
+            {{ displayedMessage }}
+          </div>
+          <button 
+            v-if="isContentLong" 
+            @click="toggleExpand" 
+            class="btn btn-link btn-sm text-white text-decoration-none p-0 mt-2"
+          >
+            {{ isExpanded ? '收合' : '顯示更多' }}
+          </button>
         </div>
         <button 
           type="button" 
-          class="btn-close btn-close-white me-2 m-auto" 
-          data-bs-dismiss="toast" 
+          class="btn-close btn-close-white me-2 m-auto"
+          data-bs-dismiss="toast"
           aria-label="Close"
         ></button>
       </div>
@@ -25,55 +34,59 @@
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
-import { Toast as BsToast } from 'bootstrap'; // 重新命名以避免與元件本身名稱衝突
+import { Toast as BsToast } from 'bootstrap';
 
-// --- Props ---
 const props = defineProps({
-  // 控制 Toast 的顯示與隱藏 (v-model)
   show: { type: Boolean, required: true },
-  // 要顯示的訊息
   message: { type: String, required: true },
-  // Toast 的類型，用於決定背景顏色
-  type: { type: String, default: 'danger' } // 可選: 'success', 'warning', 'info', 'danger'
+  type: { type: String, default: 'danger' }
 });
 
-// --- Emits ---
-const emit = defineEmits(['update:show']); // 用於 v-model
+const emit = defineEmits(['update:show']);
 
-// --- State ---
-const toastElement = ref(null); // 模板引用，指向 Toast 的 DOM 元素
-let toastInstance = null;      // 儲存 Bootstrap Toast 的實例
+const toastElement = ref(null);
+let toastInstance = null;
 
-// --- Lifecycle Hook ---
+const isExpanded = ref(false);
+const lineThreshold = 10;
+
+const isContentLong = computed(() => {
+  return props.message.split('\n').length > lineThreshold;
+});
+
+const displayedMessage = computed(() => {
+  if (isContentLong.value && !isExpanded.value) {
+    return props.message.split('\n').slice(0, lineThreshold).join('\n') + '...';
+  }
+  return props.message;
+});
+
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value;
+};
+
 onMounted(() => {
   if (toastElement.value) {
-    // 初始化 Bootstrap Toast 實例
-    toastInstance = new BsToast(toastElement.value, {
-      autohide: false, // 禁用自動隱藏
-      // delay: 3000     // 移除 delay 選項
-    });
-
-    // 監聽 Bootstrap 原生的隱藏事件
-    // 當 Toast (無論是自動還是手動關閉) 完成隱藏動畫後，
-    // 觸發 update:show 事件，將 show 狀態同步回父元件。
-    // 這是確保 Vue 狀態與 DOM 狀態一致的關鍵。
+    toastInstance = new BsToast(toastElement.value, { autohide: false });
     toastElement.value.addEventListener('hidden.bs.toast', () => {
       emit('update:show', false);
+      isExpanded.value = false; // 關閉時重置展開狀態
     });
   }
 });
 
-// --- Watcher ---
-// 監聽父元件傳入的 show 屬性
 watch(() => props.show, (newValue) => {
-  // 當 show 變為 true 時，呼叫 Bootstrap Toast 實例的 show() 方法來顯示它
   if (newValue && toastInstance) {
     toastInstance.show();
+  } else if (!newValue && toastInstance) {
+    toastInstance.hide();
   }
 });
 
-// --- Computed Property ---
-// 根據傳入的 type 屬性，動態計算背景顏色的 class
+watch(() => props.message, () => {
+  isExpanded.value = false; // 新訊息來時重置
+});
+
 const toastClass = computed(() => ({
   'text-bg-danger': props.type === 'danger',
   'text-bg-success': props.type === 'success',
@@ -81,3 +94,21 @@ const toastClass = computed(() => ({
   'text-bg-info': props.type === 'info',
 }));
 </script>
+
+<style scoped>
+.toast-body {
+  white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.content-wrapper {
+  transition: max-height 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.btn-link {
+  align-self: flex-end;
+}
+</style>
