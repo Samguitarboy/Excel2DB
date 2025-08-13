@@ -1,24 +1,46 @@
-const { createLogger, format, transports } = require('winston');
-const { combine, timestamp, printf, colorize, align } = format;
+const winston = require('winston');
+require('winston-daily-rotate-file');
+const path = require('path');
+
+const logDir = 'logs'; // 存放日誌的目錄
 
 // 自定義日誌格式
-const logFormat = printf(({ level, message, timestamp }) => {
-  return `${timestamp} [${level}] ${message}`;
+const logFormat = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.printf(info => {
+    const { timestamp, level, message, ...meta } = info;
+    let logMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
+    if (Object.keys(meta).length) {
+      // 如果有額外的 meta 資料，將其轉換為 JSON 字串
+      logMessage += ` ${JSON.stringify(meta, null, 2)}`;
+    }
+    return logMessage;
+  })
+);
+
+// 建立一個每日輪替的檔案 transport
+const fileTransport = new winston.transports.DailyRotateFile({
+  filename: path.join(logDir, 'application-%DATE%.log'),
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true, // 壓縮舊的日誌檔
+  maxSize: '20m',      // 每個日誌檔最大 20MB
+  maxFiles: '14d',     // 最多保留 14 天的日誌
+  format: logFormat,
 });
 
-const logger = createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug', // 生產環境只記錄 info 及以上，開發環境記錄 debug 及以上
-  format: combine(
-    colorize({ all: true }), // 讓日誌在控制台顯示顏色
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), // 時間戳格式
-    align(), // 對齊日誌訊息
+// 建立一個 console transport
+const consoleTransport = new winston.transports.Console({
+  format: winston.format.combine(
+    winston.format.colorize(), // 為 console 輸出加上顏色
     logFormat
   ),
+});
+
+const logger = winston.createLogger({
+  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   transports: [
-    new transports.Console(), // 輸出到控制台
-    // 可以在這裡添加其他傳輸器，例如輸出到檔案：
-    // new transports.File({ filename: 'logs/error.log', level: 'error' }),
-    // new transports.File({ filename: 'logs/combined.log' }),
+    consoleTransport,
+    fileTransport,
   ],
 });
 

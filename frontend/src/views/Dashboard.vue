@@ -77,12 +77,21 @@
                     <td>{{ app.subUnit }}</td>
                     <td>{{ app.custodian }}</td>
                     <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
-                    <td>{{ app.reason || '無' }}</td>
+                    <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
                     <td>{{ formatDateTime(app.updatedAt) }}</td>
                     <td class="text-center">
                       <template v-if="app.status === 'pending'">
                         <button class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
                         <button class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
+                      </template>
+                      <template v-if="app.status === 'approved'">
+                        <a
+                          :href="`/api/applications/${app.id}/download`"
+                          class="btn btn-sm btn-info"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="在新分頁中預覽PDF"
+                        ><i class="bi bi-search"></i> 預覽PDF</a>
                       </template>
                     </td>
                   </tr>

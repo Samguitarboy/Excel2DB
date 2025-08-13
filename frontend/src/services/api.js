@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
+import { useGuestStore } from '../stores/guest';
 import { useLoading } from '../composables/useLoading';
 
 const { showLoading, hideLoading } = useLoading();
@@ -155,11 +156,20 @@ export function submitApplication(applicationData) {
   }
 
   /**
+   * 使用者撤回自己的申請 (無需認證)
+   * @param {string} id - 申請ID
+   * @returns {Promise<Object>} 回應
+   */
+  export function userWithdrawApplication(id) {
+    return publicApiClient.patch(`/applications/${id}/withdraw`);
+  }
+
+  /**
    * 取得所有申請（管理者用）
    * @returns {Promise<Array>} 申請紀錄陣列
    */
   export function getApplications() {
-    return publicApiClient.get('/applications');
+    return apiClient.get('/applications');
   }
 
   /**
@@ -169,5 +179,27 @@ export function submitApplication(applicationData) {
    * @returns {Promise<Object>} 回應
    */
   export function updateApplicationStatus(id, status) {
-    return publicApiClient.patch(`/applications/${id}/status`, { status });
+    return apiClient.patch(`/applications/${id}/status`, { status });
+  }
+
+  /**
+   * 下載指定申請ID的PDF檔案。
+   * @param {string} id - 申請ID。
+   * @returns {Promise<Blob>} 一個解析為PDF檔案Blob的Promise。
+   */
+  export function downloadApplicationPdf(id) {
+    // 注意：我們不使用標準的攔截器，因為需要特別處理 blob 回應類型和潛在的 404 錯誤。
+    return axios.get(`/api/applications/${id}/download`, {
+      responseType: 'blob',
+    });
+  }
+
+  /**
+   * 觸發重新產生指定申請ID的PDF檔案。
+   * @param {string} id - 申請ID。
+   * @returns {Promise<Object>} 伺服器的回應。
+   */
+  export function regenerateApplicationPdf(id) {
+    // 這個請求會通過 publicApiClient，因此會顯示全域載入動畫
+    return publicApiClient.post(`/applications/${id}/regenerate-pdf`);
   }

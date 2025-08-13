@@ -137,3 +137,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# ... 其他忽略規則
+/backend/temp/
+/backend/pdfs/
+/backend/logs/
+/backend/uploads/

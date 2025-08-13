@@ -284,7 +284,7 @@ const handleSubmit = async () => {
   try {
     const response = await submitApplication(submissionData);
     console.log('申請提交成功:', response);
-    router.push('/my-applications');
+    router.push({ name: 'MyApplications', query: { submitted: 'true' } });
   } catch (err) {
     console.error('申請提交失敗:', err);
     showToast('申請提交失敗，請稍後再試。', 'danger');
