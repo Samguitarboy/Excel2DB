@@ -46,59 +46,119 @@
     <div v-if="!loading && !error" class="row">
       <!-- Section 0: Application Review List (Admin only) -->
       <div v-if="panelVisibility.review && !guestStore.isGuestMode" class="col-12 mb-4">
-        <div class="card">
-          <div class="card-header">
-            <h5 class="card-title mb-0">新款隨身碟申請列表</h5>
-          </div>
-          <div class="card-body">
-            <div v-if="reviewLoading" class="text-center">
-              <LoadingSpinner />
-              <p>正在載入申請列表...</p>
+        <div v-if="reviewLoading" class="text-center">
+          <LoadingSpinner />
+          <p>正在載入申請列表...</p>
+        </div>
+        <div v-else-if="reviewError" class="alert alert-danger">{{ reviewError }}</div>
+        <div v-else>
+          <div class="row">
+            <!-- Other Applications (Left) -->
+            <div class="col-lg-6 mb-4 mb-lg-0">
+              <div class="card h-100">
+                <div class="card-header">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">待處理及歷史申請 (共 {{ otherApplications.length }} 筆)</h5>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" role="switch" id="show-pending-only" v-model="showOnlyPending">
+                      <label class="form-check-label" for="show-pending-only">僅顯示審核中</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="card-body d-flex flex-column">
+                  <div v-if="paginatedOtherApplications.length > 0" class="flex-grow-1">
+                    <div class="table-responsive">
+                      <table class="table table-sm table-hover align-middle">
+                        <thead>
+                          <tr>
+                            <th>所屬單位-組別/股別</th>
+                            <th>保管人</th>
+                            <th>申請狀態</th>
+                            <th>來源 IP</th>
+                            <th>申請原因</th>
+                            <th>最後更新時間</th>
+                            <th class="text-center">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="app in paginatedOtherApplications" :key="app.id">
+                            <td>{{ app.subUnit }}</td>
+                            <td>{{ app.custodian }}</td>
+                            <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
+                            <td>{{ app.sourceIp || 'N/A' }}</td>
+                            <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
+                            <td>{{ formatDateTime(app.updatedAt) }}</td>
+                            <td class="text-center">
+                              <button v-if="app.status === 'pending'" class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
+                              <button v-if="app.status === 'pending'" class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <p v-else class="text-center text-muted my-auto">目前沒有待處理或歷史申請。</p>
+                  <!-- Pagination -->
+                  <nav v-if="totalPages > 1" class="mt-auto pt-3" aria-label="Application pagination">
+                    <ul class="pagination justify-content-center">
+                      <li class="page-item" :class="{ disabled: currentPage === 1 }"><a class="page-link" href="#" @click.prevent="currentPage--">上一頁</a></li>
+                      <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: currentPage === page }"><a class="page-link" href="#" @click.prevent="currentPage = page">{{ page }}</a></li>
+                      <li class="page-item" :class="{ disabled: currentPage === totalPages }"><a class="page-link" href="#" @click.prevent="currentPage++">下一頁</a></li>
+                    </ul>
+                  </nav>
+                </div>
+              </div>
             </div>
-            <div v-else-if="reviewError" class="alert alert-danger">
-              {{ reviewError }}
+
+            <!-- Approved Applications (Right) -->
+            <div class="col-lg-6">
+              <div class="card h-100">
+                <div class="card-header bg-success-subtle">
+                  <h5 class="card-title mb-0">已核准的申請 (共 {{ approvedApplications.length }} 筆)</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                  <div v-if="paginatedApprovedApplications.length > 0" class="flex-grow-1">
+                    <div class="table-responsive">
+                      <table class="table table-sm table-hover align-middle">
+                        <thead>
+                          <tr>
+                            <th>所屬單位-組別/股別</th>
+                            <th>保管人</th>
+                            <th>來源 IP</th>
+                            <th>申請原因</th>
+                            <th>核准時間</th>
+                            <th class="text-center">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="app in paginatedApprovedApplications" :key="app.id">
+                            <td>{{ app.subUnit }}</td>
+                            <td>{{ app.custodian }}</td>
+                            <td>{{ app.sourceIp || 'N/A' }}</td>
+                            <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
+                            <td>{{ formatDateTime(app.updatedAt) }}</td>
+                            <td class="text-center">
+                              <a :href="`/api/applications/${app.id}/download`" class="btn btn-sm btn-info" target="_blank" rel="noopener noreferrer" title="在新分頁中預覽PDF">
+                                <i class="bi bi-search"></i> 預覽PDF
+                              </a>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <p v-else class="text-center text-muted my-auto">目前沒有已核准的申請。</p>
+                  <!-- Pagination for Approved Applications -->
+                  <nav v-if="approvedTotalPages > 1" class="mt-auto pt-3" aria-label="Approved applications pagination">
+                    <ul class="pagination justify-content-center">
+                      <li class="page-item" :class="{ disabled: approvedCurrentPage === 1 }"><a class="page-link" href="#" @click.prevent="approvedCurrentPage--">上一頁</a></li>
+                      <li v-for="page in approvedTotalPages" :key="page" class="page-item" :class="{ active: approvedCurrentPage === page }"><a class="page-link" href="#" @click.prevent="approvedCurrentPage = page">{{ page }}</a></li>
+                      <li class="page-item" :class="{ disabled: approvedCurrentPage === approvedTotalPages }"><a class="page-link" href="#" @click.prevent="approvedCurrentPage++">下一頁</a></li>
+                    </ul>
+                  </nav>
+                </div>
+              </div>
             </div>
-            <div v-else-if="reviewApplications.length > 0" class="table-responsive">
-              <table class="table table-sm table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>所屬單位</th>
-                    <th>組別/股別</th>
-                    <th>保管人</th>
-                    <th>申請狀態</th>
-                    <th>申請原因</th>
-                    <th>最後更新時間</th>
-                    <th class="text-center">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="app in reviewApplications" :key="app.id">
-                    <td>{{ app.affiliatedUnit }}</td>
-                    <td>{{ app.subUnit }}</td>
-                    <td>{{ app.custodian }}</td>
-                    <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
-                    <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
-                    <td>{{ formatDateTime(app.updatedAt) }}</td>
-                    <td class="text-center">
-                      <template v-if="app.status === 'pending'">
-                        <button class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
-                        <button class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
-                      </template>
-                      <template v-if="app.status === 'approved'">
-                        <a
-                          :href="`/api/applications/${app.id}/download`"
-                          class="btn btn-sm btn-info"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="在新分頁中預覽PDF"
-                        ><i class="bi bi-search"></i> 預覽PDF</a>
-                      </template>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p v-else class="text-center text-muted">目前沒有待審核的申請。</p>
           </div>
         </div>
       </div>
@@ -191,11 +251,9 @@
                 <div class="range-slider-container">
                   <input type="range" class="form-range" id="inactive-days-slider" min="1" max="365" v-model.number="inactiveDays">
                   <div class="range-slider-labels">
-                    <span style="left: 0.27%;">1</span>
-                    <span style="left: 8.2%;">30</span>
-                    <span style="left: 24.6%;">90</span>
-                    <span style="left: 49.3%;">180</span>
-                    <span style="left: 100%;">365</span>
+                    <span v-for="label in sliderLabels" :key="label.value" :style="{ left: getLabelPosition(label.value) }">
+                      {{ label.label }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -217,6 +275,7 @@
                     <thead class="table-light sticky-top">
                       <tr>
                         <th>資產名稱</th>
+                        <th>所屬單位</th>
                         <th>保管人</th>
                         <th>最後存取時間</th>
                       </tr>
@@ -224,6 +283,7 @@
                     <tbody>
                       <tr v-for="item in inactiveRegularUsbList" :key="item['財產編號']">
                         <td>{{ item['資產名稱'] }}</td>
+                        <td>{{ item['(自)所屬單位'] }}</td>
                         <td>{{ item['保管人'] || 'N/A' }}</td>
                         <td>{{ item['最後存取時間'] || '無紀錄' }}</td>
                       </tr>
@@ -245,6 +305,7 @@
                     <thead class="table-light sticky-top">
                       <tr>
                         <th>資產名稱</th>
+                        <th>所屬單位</th>
                         <th>保管人</th>
                         <th>最後存取時間</th>
                       </tr>
@@ -252,6 +313,7 @@
                     <tbody>
                       <tr v-for="item in inactiveEncryptedUsbList" :key="item['財產編號']">
                         <td>{{ item['資產名稱'] }}</td>
+                        <td>{{ item['(自)所屬單位'] }}</td>
                         <td>{{ item['保管人'] || 'N/A' }}</td>
                         <td>{{ item['最後存取時間'] || '無紀錄' }}</td>
                       </tr>
@@ -268,7 +330,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, reactive } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useGuestStore } from '../stores/guest';
 import { fetchExcelData, fetchPublicDataByUnit, getApplications, updateApplicationStatus } from '../services/api';
@@ -282,7 +344,7 @@ const loading = ref(true);
 const error = ref(null);
 const excelApplications = ref([]);
 const expandedDepartments = ref({});
-const panelVisibility = ref({
+const panelVisibility = reactive({
   review: true,
   category: false,
   department: false,
@@ -294,6 +356,10 @@ const reviewApplications = ref([]);
 const reviewLoading = ref(true);
 const reviewError = ref(null);
 const isUpdatingStatus = ref(false);
+const currentPage = ref(1);
+const approvedCurrentPage = ref(1);
+const itemsPerPage = 10;
+const showOnlyPending = ref(true);
 
 const toggleDepartment = (department) => {
   expandedDepartments.value[department] = !expandedDepartments.value[department];
@@ -317,8 +383,8 @@ onMounted(async () => {
   if (!guestStore.isGuestMode) {
     try {
       const apps = await getApplications();
-      // 依最後更新時間遞增排序
-      apps.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+      // 依最後更新時間遞減排序 (新的在前面)
+      apps.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
       reviewApplications.value = apps;
     } catch (err) {
       reviewError.value = '無法載入申請審核列表。';
@@ -327,6 +393,47 @@ onMounted(async () => {
       reviewLoading.value = false;
     }
   }
+});
+
+// --- Computed Properties for Review Panel ---
+const approvedApplications = computed(() => {
+  return reviewApplications.value.filter(app => app.status === 'approved');
+});
+
+const otherApplications = computed(() => {
+  const allOthers = reviewApplications.value.filter(app => app.status !== 'approved');
+  if (showOnlyPending.value) {
+    return allOthers.filter(app => app.status === 'pending');
+  }
+  return allOthers;
+});
+
+const approvedTotalPages = computed(() => {
+  return Math.ceil(approvedApplications.value.length / itemsPerPage);
+});
+
+const paginatedApprovedApplications = computed(() => {
+  // 當頁數因資料變動而超出範圍時，自動跳回最後一頁
+  if (approvedTotalPages.value > 0 && approvedCurrentPage.value > approvedTotalPages.value) {
+    approvedCurrentPage.value = approvedTotalPages.value;
+  }
+  const start = (approvedCurrentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return approvedApplications.value.slice(start, end);
+});
+
+const totalPages = computed(() => {
+  return Math.ceil(otherApplications.value.length / itemsPerPage);
+});
+
+const paginatedOtherApplications = computed(() => {
+  // 當頁數因資料變動而超出範圍時，自動跳回最後一頁
+  if (totalPages.value > 0 && currentPage.value > totalPages.value) {
+    currentPage.value = totalPages.value;
+  }
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return otherApplications.value.slice(start, end);
 });
 
 // --- Methods for Review Panel ---
@@ -343,8 +450,8 @@ const updateStatus = async (id, status) => {
     const index = reviewApplications.value.findIndex(app => app.id === id);
     if (index !== -1) {
       reviewApplications.value[index] = updatedApp.application;
-      // 更新後重新排序以維持順序
-      reviewApplications.value.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+      // 更新後重新排序以維持順序 (新的在前面)
+      reviewApplications.value.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     }
   } catch (err) {
     reviewError.value = `更新申請狀態失敗 (ID: ${id})，請稍後再試。`;
@@ -471,6 +578,20 @@ const departmentTableData = computed(() => {
 
 // -- Last Access Time Analysis --
 const inactiveDays = ref(30);
+const sliderLabels = [
+  { value: 1, label: '1' },
+  { value: 30, label: '30' },
+  { value: 90, label: '90' },
+  { value: 180, label: '180' },
+  { value: 365, label: '365' }
+];
+
+const getLabelPosition = (value) => {
+  const min = 1;
+  const max = 365;
+  const position = ((value - min) / (max - min)) * 100;
+  return `${position}%`;
+};
 
 const inactiveUsbList = computed(() => {
   if (!inactiveDays.value) return [];
@@ -563,9 +684,7 @@ const inactiveUsbCounts = computed(() => {
   bottom: -5px;
   left: 0;
   right: 0;
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: #6c757d;
 }
 .range-slider-labels span {
@@ -584,5 +703,8 @@ const inactiveUsbCounts = computed(() => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
+}
+.page-item .page-link {
+  cursor: pointer;
 }
 </style>

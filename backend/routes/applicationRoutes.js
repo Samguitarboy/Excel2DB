@@ -10,12 +10,31 @@ const { v4: uuidv4 } = require('uuid');
 const fsp = require('fs').promises;
 const path = require('path');
 
+const getTimestamp = () => new Date().toISOString();
+
 // 接收可攜式儲存媒體申請表單的資料
 router.post('/', async (req, res, next) => {
+  // --- IP 清理邏輯 ---
+  let sourceIp = req.ip;
+  if (sourceIp) {
+    // 處理 ::ffff:127.0.0.1 這種 IPv4-mapped IPv6 位址
+    if (sourceIp.startsWith('::ffff:')) {
+      sourceIp = sourceIp.substring(7);
+    }
+    // 如果是包含 port 的 IPv4 位址 (例如 XXX.XX.XX.XX:54492)，則移除 port
+    if (sourceIp.includes('.') && sourceIp.includes(':')) {
+      sourceIp = sourceIp.split(':')[0];
+    }
+  }
+  // --- IP 清理邏輯結束 ---
+
+  const start = Date.now();
+  logger.info(`[${getTimestamp()}] [API] POST /applications 申請送出，收到資料 from IP: ${sourceIp}`, req.body);
   try {
     const { affiliatedUnit, applications: newApplications } = req.body;
-    logger.info('📝 Received new application:', { affiliatedUnit, newApplications });
+    logger.info(`[${getTimestamp()}] [API] 申請資料解析`, { affiliatedUnit, newApplications });
     const allApplications = await readApplications();
+    logger.info(`[${getTimestamp()}] [API] 目前所有申請數量:`, allApplications.length);
 
     const processedApps = newApplications.map(app => ({
       id: uuidv4(),
@@ -24,74 +43,120 @@ router.post('/', async (req, res, next) => {
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      sourceIp: sourceIp, // 紀錄清理後的來源 IP
     }));
     allApplications.push(...processedApps);
     await writeApplications(allApplications);
+    logger.info(`[${getTimestamp()}] [API] 新申請已加入，總申請數:`, allApplications.length);
+    logger.info(`[${getTimestamp()}] [API] POST /applications 處理完成，耗時: ${Date.now() - start}ms`);
     res.status(200).json({ message: '申請已成功接收！' });
   } catch (error) {
-    logger.error('❌ Error processing application:', error);
+    logger.error(`[${getTimestamp()}] [API] 申請處理失敗:`, error);
     next(new AppError('處理申請時發生錯誤。', 500));
   }
 });
 
 // 取得所有申請（管理者用）
 router.get('/', authenticateJWT, async (req, res, next) => {
+  const start = Date.now();
+  logger.info(`[${getTimestamp()}] [API] GET /applications 管理者查詢所有申請`);
   try {
     const applications = await readApplications();
+    logger.info(`[${getTimestamp()}] [API] 取得所有申請，數量:`, applications.length);
+    logger.info(`[${getTimestamp()}] [API] GET /applications 處理完成，耗時: ${Date.now() - start}ms`);
     res.json(applications);
   } catch (error) {
-    logger.error('❌ Error fetching applications:', error);
+    logger.error(`[${getTimestamp()}] [API] 取得所有申請失敗:`, error);
     next(new AppError('取得申請資料失敗', 500));
   }
 });
 
 // 取得某單位/組別的申請（申請人用）
 router.get('/unit/:unit', async (req, res, next) => {
+  const start = Date.now();
+  logger.info(`[${getTimestamp()}] [API] GET /applications/unit/${req.params.unit} 申請人查詢`);
   try {
     const unit = req.params.unit;
     const applications = await readApplications();
-    // 根據主要單位 (affiliatedUnit) 進行過濾
+    logger.info(`[${getTimestamp()}] [API] 取得所有申請，數量:`, applications.length);
     const filtered = applications.filter(app => app.affiliatedUnit === unit);
+    logger.info(`[${getTimestamp()}] [API] 單位 ${unit} 申請數量:`, filtered.length);
+    logger.info(`[${getTimestamp()}] [API] GET /applications/unit/${unit} 處理完成，耗時: ${Date.now() - start}ms`);
     res.json(filtered);
   } catch (error) {
-    logger.error('❌ Error fetching unit applications:', error);
+    logger.error(`[${getTimestamp()}] [API] 取得單位申請失敗:`, error);
     next(new AppError('取得申請資料失敗', 500));
   }
 });
 
 // 撤回申請 (申請人用)
 router.patch('/:id/withdraw', async (req, res, next) => {
+  const start = Date.now();
+  logger.info(`[${getTimestamp()}] [API] PATCH /applications/${req.params.id}/withdraw 撤回申請`);
   try {
     const { id } = req.params;
     const applications = await readApplications();
-    const idx = applications.findIndex(app => app.id === id);
-    if (idx === -1) {
+    logger.info(`[${getTimestamp()}] [API] 取得所有申請，數量:`, applications.length);
+    
+    const targetApp = applications.find(app => app.id === id);
+
+    if (!targetApp) {
       return next(new AppError('找不到申請紀錄', 404));
     }
 
     // 只有在審核中的申請才能被撤回
-    if (applications[idx].status !== 'pending') {
+    if (targetApp.status !== 'pending') {
       return next(new AppError('只有在審核中的申請才能被撤回。', 400));
     }
 
-    applications[idx].status = 'withdrawn';
-    applications[idx].updatedAt = new Date().toISOString();
+    const submissionIdToWithdraw = targetApp.submissionId;
+    const withdrawnApps = []; // 用於存放被更新的申請
 
-    await writeApplications(applications);
-    res.json({ message: '申請已成功撤回', application: applications[idx] });
+    if (submissionIdToWithdraw) {
+      // 如果有 submissionId，則撤回所有相關且在審核中的申請
+      applications.forEach(app => {
+        if (app.submissionId === submissionIdToWithdraw && app.status === 'pending') {
+          app.status = 'withdrawn';
+          app.updatedAt = new Date().toISOString();
+          withdrawnApps.push(app); // 將更新後的 app 加入陣列
+        }
+      });
+      logger.info(`[${getTimestamp()}] [API] 根據 submissionId: ${submissionIdToWithdraw}，共撤回 ${withdrawnApps.length} 筆申請`);
+    } else {
+      // Fallback for old data without submissionId
+      targetApp.status = 'withdrawn';
+      targetApp.updatedAt = new Date().toISOString();
+      withdrawnApps.push(targetApp); // 將更新後的 app 加入陣列
+      logger.info(`[${getTimestamp()}] [API] 申請 ${id} (無 submissionId) 已撤回`);
+    }
+
+    if (withdrawnApps.length > 0) {
+      await writeApplications(applications);
+    }
+
+    logger.info(`[${getTimestamp()}] [API] PATCH /applications/${id}/withdraw 處理完成，耗時: ${Date.now() - start}ms`);
+    // 在回應中回傳被更新的申請資料
+    res.json({ 
+      message: `共 ${withdrawnApps.length} 筆申請已成功撤回`,
+      withdrawnApps: withdrawnApps
+    });
   } catch (error) {
-    logger.error('❌ Error withdrawing application:', error);
+    logger.error(`[${getTimestamp()}] [API] 撤回申請失敗:`, error);
     next(new AppError('撤回申請失敗', 500));
   }
 });
 
 // 更新申請狀態（管理者用）
 router.patch('/:id/status', authenticateJWT, async (req, res, next) => {
+  const start = Date.now();
+  logger.info(`[${getTimestamp()}] [API] PATCH /applications/${req.params.id}/status 管理者更新狀態`, req.body);
   try {
     const id = req.params.id;
     const { status } = req.body;
     const applications = await readApplications();
+    logger.info(`[${getTimestamp()}] [API] 取得所有申請，數量:`, applications.length);
     const idx = applications.findIndex(app => app.id === id);
+    logger.info(`[${getTimestamp()}] [API] 更新申請 index: ${idx}`);
     if (idx === -1) return next(new AppError('找不到申請紀錄', 404));
 
     const application = applications[idx];
@@ -124,9 +189,11 @@ router.patch('/:id/status', authenticateJWT, async (req, res, next) => {
     }
 
     await writeApplications(applications);
+    logger.info(`[${getTimestamp()}] [API] 申請 ${id} 狀態已更新為 ${status}`);
+    logger.info(`[${getTimestamp()}] [API] PATCH /applications/${id}/status 處理完成，耗時: ${Date.now() - start}ms`);
     res.json({ message: '狀態已更新', application });
   } catch (error) {
-    logger.error('❌ Error updating application status:', error);
+    logger.error(`[${getTimestamp()}] [API] 更新申請狀態失敗:`, error);
     next(new AppError('更新申請狀態失敗', 500));
   }
 });

@@ -1,14 +1,21 @@
 <template>
   <div class="container mt-5">
     <!-- Loading Overlay -->
-    <div v-if="isSubmitting" class="loading-overlay">
-      <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
-        <span class="visually-hidden">正在提交...</span>
+    <LoadingOverlay v-if="isSubmitting" message="正在提交申請，請稍候..." />
+
+    <!-- Initial Loading Spinner -->
+    <div v-if="loading" class="text-center mt-5">
+      <div class="spinner-border" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">載入中...</span>
       </div>
-      <p class="mt-3 fs-5 text-light">正在提交申請，請稍候...</p>
+      <p class="mt-3">正在準備表單...</p>
     </div>
 
-    <div class="card shadow">
+    <!-- Error Message -->
+    <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
+
+    <!-- Main Form Content -->
+    <div v-else class="card shadow">
       <div class="card-header">
         <h3 class="card-title">新式加密隨身碟申請</h3>
       </div>
@@ -140,6 +147,7 @@ import { useRouter } from 'vue-router';
 import { useGuestStore } from '../stores/guest';
 import { fetchPublicDataByUnits, submitApplication } from '../services/api.js';
 import Toast from '../components/Toast.vue';
+import LoadingOverlay from '../components/LoadingOverlay.vue';
 import departments from '../data/departments.json';
 
 const guestStore = useGuestStore();
@@ -147,6 +155,10 @@ const router = useRouter();
 
 // Loading state for submission
 const isSubmitting = ref(false);
+
+// Initial loading and error states
+const loading = ref(true);
+const error = ref(null);
 
 // 組/股別陣列
 const applications = ref([
@@ -208,24 +220,24 @@ const selectedSubUnits = computed(() => {
 const toast = ref({ show: false, message: '', type: 'info' }); 
 
 // 儲存從後端獲取的原始資料
-const unitExcelData = ref([]); 
+const unitExcelData = ref([]);
 
-// --- 生命週期鉤子 (Lifecycle Hook) ---
-onMounted(async () => {
-  // 立即根據 store 中的主要單位設定窗口聯繫人
-  updateContactPerson(guestStore.guestMajorUnit);
-
+const initializeData = async () => {
   try {
-    if (guestStore.isGuestMode && guestStore.guestSubUnits.length > 0) {
-      unitExcelData.value = await fetchPublicDataByUnits(guestStore.guestSubUnits);
-    } else {
-      showToast('請先回上頁選擇單位。', 'danger');
+    updateContactPerson(guestStore.guestMajorUnit);
+    if (!guestStore.isGuestMode || guestStore.guestSubUnits.length === 0) {
+      throw new Error('無法確定您的單位，請返回上一頁重新選擇。');
     }
+    unitExcelData.value = await fetchPublicDataByUnits(guestStore.guestSubUnits);
   } catch (err) {
-    console.error('Error fetching public data by unit:', err);
-    showToast('無法載入該單位隨身碟列表，請稍後再試。', 'danger');
+    console.error('Error initializing form:', err);
+    error.value = err.message || '無法載入表單資料，請稍後再試。';
+  } finally {
+    loading.value = false;
   }
-});
+};
+
+onMounted(initializeData);
 
 // 新增一個組/股別區塊
 const addApplicationBlock = () => {
@@ -265,6 +277,9 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true;
 
+  // 為此批次申請產生一個唯一的 submissionId
+  const submissionId = `sub_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+
   // 將資料結構扁平化以符合後端需求
   const flattenedApplications = applications.value.flatMap(app => {
     const reasonForThisBlock = app.custodians.length > 1 ? app.reason : '';
@@ -273,6 +288,7 @@ const handleSubmit = async () => {
       custodian: custodian,
       unitControlContact: unitControlContact.value,
       reason: reasonForThisBlock,
+      submissionId: submissionId, // 將 submissionId 加入每筆申請資料
     }));
   });
 
@@ -281,15 +297,17 @@ const handleSubmit = async () => {
     applications: flattenedApplications,
   };
 
+  console.log('[Applyform] 開始送出申請', submissionData);
   try {
-    const response = await submitApplication(submissionData);
-    console.log('申請提交成功:', response);
+    await submitApplication(submissionData);
+    console.log('[Applyform] 申請送出成功，將跳轉至我的申請紀錄頁面。');
+    // 直接跳轉，由 MyApplications.vue 處理輪詢
     router.push({ name: 'MyApplications', query: { submitted: 'true' } });
   } catch (err) {
-    console.error('申請提交失敗:', err);
-    showToast('申請提交失敗，請稍後再試。', 'danger');
-  } finally {
-    isSubmitting.value = false;
+    console.error('[Applyform] 申請提交失敗:', err);
+    showToast(err.message || '申請提交失敗，請稍後再試。', 'danger');
+    // 僅在出錯時停止 loading，成功時會直接跳轉
+    isSubmitting.value = false; 
   }
 };
 

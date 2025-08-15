@@ -44,34 +44,61 @@ apiClient.interceptors.request.use(
 );
 
 /**
- * 回應攔截器 (用於所有 API，包括公開 API)
+ * 回應攔截器 (用於所有 API 客戶端)
  * 
- * 1. 在收到回應後，呼叫 hideLoading() 來隱藏全域載入動畫。
- * 2. 檢查是否有 401 (未授權) 或 403 (禁止) 錯誤，若有則自動登出。
- * 3. 統一處理並拋出一個更易讀的錯誤訊息。
- * 4. 自動解包後端回應中的 `data` 屬性。
+ * 1. 在收到回應後，隱藏全域載入動畫。
+ * 2. 如果成功，則自動解包後端回應中的 `data` 屬性。
+ * 3. 如果失敗，則進行判斷：
+ *    a. 如果是**非登入請求**的 401/403 錯誤，則自動登出。
+ *    b. 對於所有其他錯誤 (包括登入失敗)，則格式化錯誤訊息並將其拋出。
  */
-[apiClient, publicApiClient].forEach(client => {
-  client.interceptors.response.use(
-    (response) => {
-      hideLoading();
-      // 為了方便，直接回傳後端資料中的 data 部分，如果後端直接回傳陣列也能兼容
-      return response.data.data || response.data;
-    },
-    (error) => {
-      hideLoading();
+/**
+ * 通用的回應成功處理器：隱藏載入動畫並解包資料。
+ */
+const handleSuccess = (response) => {
+  hideLoading();
+  return response.data.data || response.data;
+};
+
+/**
+ * 通用的錯誤訊息格式化器。
+ */
+const formatError = (error) => {
+  hideLoading();
+  const message = error.response?.data?.message || error.message || '發生未知錯誤';
+  return Promise.reject(new Error(message));
+};
+
+// --- publicApiClient 攔截器 (職責：絕不觸發登出) ---
+// 用於登入、註冊等公開 API。
+publicApiClient.interceptors.response.use(
+  (response) => {
+    hideLoading();
+    return response.data;
+  },
+  (error) => {
+    hideLoading();
+    const message = error.response?.data?.message || error.message || '登入失敗，請檢查您的帳號或密碼。';
+    return Promise.reject(new Error(message));
+  }
+);
+
+// --- apiClient 攔截器 (職責：在必要時觸發登出) ---
+// 用於所有需要認證的 API。
+apiClient.interceptors.response.use(
+  handleSuccess,
+  (error) => {
+    // 如果是 401/403 權限錯誤，表示 token 失效或無權限，執行登出。
+    if (error.response && [401, 403].includes(error.response.status)) {
       const authStore = useAuthStore();
-      // 檢查是否為 token 失效或權限不足的錯誤
-      // 注意：公開 API 不會觸發此登出邏輯，因為它們不依賴 token
-      if (error.response && [401, 403].includes(error.response.status)) {
-        authStore.logout(); // 自動登出
-      }
-      // 格式化錯誤訊息，優先使用後端提供的錯誤訊息
-      const message = error.response?.data?.message || error.message || '發生未知錯誤';
-      return Promise.reject(new Error(message));
+      authStore.logout();
+      // 返回一個永遠不會解析的 Promise，以中斷當前的 Promise 鏈，防止後續程式碼執行。
+      return new Promise(() => {});
     }
-  );
-});
+    // 對於其他錯誤 (如 500 伺服器錯誤)，則正常拋出。
+    return formatError(error);
+  }
+);
 
 // --- 認證相關 API 函式 ---
 
@@ -80,8 +107,18 @@ apiClient.interceptors.request.use(
  * @param {Object} credentials - 包含 username 和 password 的物件。
  * @returns {Promise<Object>} 返回後端的回應。
  */
-export function loginUser(credentials) {
-  return apiClient.post('/login', credentials);
+export async function loginUser(credentials) {
+  try {
+    const response = await publicApiClient.post('/login', credentials);
+    if (!response.token) {
+      throw new Error('未收到有效的登入憑證');
+    }
+    return response;
+  } catch (error) {
+    hideLoading();
+    const errorMessage = error.response?.data?.message || error.message || '登入失敗，請檢查您的帳號或密碼。';
+    throw new Error(errorMessage);
+  }
 }
 
 /**

@@ -1,206 +1,178 @@
 <template>
-  <div :class="{ 'filters-mobile-open': isFilterVisible }">
-    <div class="d-grid d-md-none mb-2">
-      <button class="btn btn-outline-secondary btn-sm" type="button" @click="isFilterVisible = !isFilterVisible">
-        <i class="bi bi-funnel-fill"></i> {{ isFilterVisible ? '隱藏篩選條件' : '顯示篩選條件' }}
-      </button>
-    </div>
-    <div class="table-responsive">
-    <table class="table table-striped table-hover rwd-table">
-      <thead class="table-dark">
-        <tr>
-          <th v-for="header in headers" :key="header" @click="$emit('sort', header)" class="sortable-header">
-            {{ header }}
-            <SortIcon :active="sortKey === header" :sort-order="sortOrder" />
-          </th>
-          <th class="actions-header"></th>
-        </tr>
-        <tr class="filter-row">
-          <th v-for="header in headers" :key="header + '-filter'">
-            <!-- 日期篩選器 -->
-            <div v-if="header === '最後存取時間'" class="d-flex align-items-center" style="min-width: 220px;">
-              <select
-                class="form-select form-select-sm"
-                style="width: auto;"
-                :value="searchQueries[header].operator"
-                @change="$emit('update:searchQueries', { ...searchQueries, [header]: { ...searchQueries[header], operator: $event.target.value } })"
-              >
-                <option value="gt">晚於</option>
-                <option value="lt">早於</option>
-              </select>
-              <input
-                type="date"
-                class="form-control form-control-sm ms-1"
-                :value="searchQueries[header].value"
-                @input="$emit('update:searchQueries', { ...searchQueries, [header]: { ...searchQueries[header], value: $event.target.value } })"
-              />
-            </div>
-            <!-- 下拉選單篩選器 -->
-            <select v-else-if="dropdownOptions[header]"
-              class="form-select form-select-sm"
-              :value="searchQueries[header]"
-              @change="$emit('update:searchQueries', { ...searchQueries, [header]: $event.target.value })"
-            >
-              <option value="">所有</option>
-              <option v-for="(option, index) in dropdownOptions[header]" :key="index" :value="option" >
-                {{ option }}
-              </option>
-            </select>
-            <!-- 一般文字篩選器 -->
-            <input
-              v-else
-              type="text"
-              class="form-control form-control-sm"
-              :placeholder="'搜尋 ' + header"
-              :value="searchQueries[header]"
-              @input="$emit('update:searchQueries', { ...searchQueries, [header]: $event.target.value })"
-            />
-          </th>
-          <th></th> <!-- 操作欄位的篩選列留空 -->
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="data.length > 0" v-for="(row, index) in data" :key="index">
-          <td v-for="header in headers" :key="header" :data-label="header">
-            <template v-if="header === '最後存取時間'">
-              <span v-if="!row[header]">
-                已過一年以上沒有使用
-              </span>
-              <span v-else>
-                {{ new Date(row[header]).toLocaleString() }}
-              </span>
-            </template>
-            <template v-else>
-              {{ row[header] }}
-            </template>
-          </td>
-          <td data-label="操作">
-            <button class="btn btn-sm btn-outline-primary" @click="$emit('view-details', row)">
-              <i class="bi bi-eye"></i> 查看詳情
-            </button>
-          </td>
-        </tr>
-        <tr v-else>
-          <td :colspan="headers.length + 1" class="text-center">沒有找到符合搜尋條件的資料。</td>
-        </tr>
-      </tbody>
-    </table>
+  <!-- Mobile filter toggle -->
+  <div class="d-grid d-md-none mb-2">
+    <button class="btn btn-outline-secondary btn-sm" type="button" @click="showFilters = !showFilters">
+      <i class="bi bi-funnel-fill"></i>
+      {{ showFilters ? '隱藏篩選條件' : '顯示篩選條件' }}
+    </button>
   </div>
+
+  <div :class="{ 'filters-mobile-open': showFilters }">
+    <div class="table-responsive">
+      <table class="table table-striped table-hover rwd-table">
+        <thead class="table-dark">
+          <tr>
+            <th v-for="header in headers" :key="header" @click="emitSort(header)" class="sortable-header">
+              {{ header }}
+              <SortIcon :active="sortKey === header" :sort-order="sortOrder" />
+            </th>
+            <th class="actions-header"></th>
+          </tr>
+          <tr class="filter-row">
+            <th v-for="header in headers" :key="`${header}-filter`">
+              <!-- 下拉式選單篩選 -->
+              <div v-if="header === '最後存取時間'" class="d-flex align-items-center" style="min-width: 220px;">
+                <select class="form-select form-select-sm" style="width: auto;" :value="searchQueries[header].operator" @change="updateSearchQueries(header, { ...searchQueries[header], operator: $event.target.value })">
+                  <option value="gt">晚於</option>
+                  <option value="lt">早於</option>
+                </select>
+                <input type="date" class="form-control form-control-sm ms-1" :value="searchQueries[header].value" @input="updateSearchQueries(header, { ...searchQueries[header], value: $event.target.value })">
+              </div>
+              <select v-else-if="dropdownOptions[header]" class="form-select form-select-sm" :value="searchQueries[header]" @change="updateSearchQueries(header, $event.target.value)">
+                  <option value="">所有</option>
+                  <option v-for="option in dropdownOptions[header]" :key="option" :value="option">{{ option }}</option>
+              </select>
+              <!-- 日期區間篩選 -->
+              <!-- 一般文字篩選 -->
+              <input v-else type="text" class="form-control form-control-sm" :placeholder="`搜尋 ${header}`" :value="searchQueries[header]" @input="updateSearchQueries(header, $event.target.value)">
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-if="data.length > 0">
+            <tr v-for="(row, index) in data" :key="index">
+              <td v-for="header in headers" :key="header" :data-label="header">
+                <template v-if="header === '最後存取時間'">
+                  <span v-if="row[header]">{{ new Date(row[header]).toLocaleString() }}</span>
+                  <span v-else> 已過一年以上沒有使用 </span>
+                </template>
+                <template v-else>
+                  {{ row[header] }}
+                </template>
+              </td>
+              <td data-label="操作">
+                <button class="btn btn-sm btn-outline-primary" @click="emitViewDetails(row)">
+                  <i class="bi bi-eye"></i> 查看詳情
+                </button>
+              </td>
+            </tr>
+          </template>
+          <tr v-else>
+            <td :colspan="headers.length + 1" class="text-center">
+              沒有找到符合搜尋條件的資料。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import SortIcon from './SortIcon.vue';
 
-// --- Props --- 
-// 定義此元件接收的所有屬性
-defineProps({
-  // 表格標頭陣列
+const props = defineProps({
   headers: { type: Array, required: true },
-  // 要顯示的資料陣列 (已經過分頁處理)
   data: { type: Array, required: true },
-  // 目前排序的欄位 key
   sortKey: { type: String, required: true },
-  // 目前的排序順序 ('asc' 或 'desc')
   sortOrder: { type: String, required: true },
-  // 包含所有搜尋條件的物件
   searchQueries: { type: Object, required: true },
-  // 為特定欄位提供下拉選單選項的物件
-  dropdownOptions: { type: Object, required: true }
+  dropdownOptions: { type: Object, default: () => ({}) }
 });
 
-// --- Emits ---
-// 定義此元件會觸發的事件，以便父元件監聽
-defineEmits([
-  'sort',             // 當使用者點擊標頭進行排序時觸發
-  'update:searchQueries', // 當任何搜尋條件改變時觸發
-  'view-details'      // 當使用者點擊「查看詳情」按鈕時觸發
-]);
+const emit = defineEmits(['sort', 'update:searchQueries', 'view-details']);
 
-// --- State ---
-// 控制在手機版上是否顯示篩選條件區域
-const isFilterVisible = ref(false);
+const showFilters = ref(false);
+
+const emitSort = (key) => {
+  emit('sort', key);
+};
+
+const updateSearchQueries = (header, value) => {
+  emit('update:searchQueries', {
+    ...props.searchQueries,
+    [header]: value
+  });
+};
+
+const emitViewDetails = (row) => {
+  emit('view-details', row);
+};
+
+
 </script>
 
 <style scoped>
-th {
-  user-select: none;
+.rwd-table {
+  /* 自動表格佈局，讓欄寬根據內容調整 */
+  table-layout: auto;
+  width: 100%;
 }
 
 .sortable-header {
   cursor: pointer;
+  white-space: nowrap;
   user-select: none;
 }
 
 .actions-header {
-  width: 1%; /* 讓操作欄位寬度盡可能小 */
+  width: 1%;
+  white-space: nowrap;
 }
 
-.rwd-table th, .rwd-table td {
+/* 確保操作欄位在桌面版不會換行 */
+td[data-label="操作"] {
   white-space: nowrap;
 }
 
 .filter-row th {
-  padding: 0.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
-/* RWD (響應式網頁設計) 樣式 */
-/* 當螢幕寬度小於 768px 時生效 */
 @media (max-width: 767.98px) {
-  /* 隱藏傳統的 a-zA-Z0-9 標題列，但保留 thead 元素以便顯示篩選列 */
-  .rwd-table > thead > tr:not(.filter-row) {
+  .filters-mobile-open .filter-row {
+    display: table-row;
+  }
+  .filter-row {
     display: none;
   }
-
-  /* 在手機版，預設隱藏篩選條件區塊 */
-  .rwd-table .filter-row {
+  .rwd-table thead {
     display: none;
-    border-bottom: 1px solid #495057; /* 為篩選區塊加上底線 */
   }
-
-  /* 將表格的每一行 (tr) 變成一個區塊元素，類似卡片 */
   .rwd-table tr {
     display: block;
     margin-bottom: 1rem;
     border: 1px solid #dee2e6;
-    border-radius: .25rem;
+    border-radius: .375rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
   }
-
-  /* 當點擊「顯示篩選條件」按鈕後，讓篩選區塊顯示出來 */
-  .filters-mobile-open .rwd-table .filter-row {
-    display: block;
-  }
-
-  /* 讓篩選區塊中的每個儲存格 (th) 垂直堆疊 */
-  .rwd-table .filter-row th {
-    display: block;
-  }
-  
-  /* 將每一個資料格 (td) 也變成區塊元素，並設定其樣式 */
   .rwd-table td {
-    display: block;
-    text-align: right; /* 讓內容靠右對齊 */
-    border: none;
-    border-bottom: 1px solid #dee2e6;
-    position: relative;
-    padding-left: 50%; /* 留出左邊空間給偽元素標籤 */
-    white-space: normal; /* 恢復自動換行 */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: right;
+    padding: .75rem;
+    border-bottom: 1px solid #e9ecef;
   }
-
-  .rwd-table td:last-child {
-    border-bottom: 0; /* 最後一個資料格不需要底線 */
-  }
-
-  /* 使用偽元素 (::before) 來顯示該行的標題 */
-  .rwd-table td::before {
-    content: attr(data-label); /* 讀取 td 上的 data-label 屬性作為內容 */
-    position: absolute;
-    left: 0;
-    width: 45%;
-    padding-left: 1rem;
+  .rwd-table td:not([data-label="操作"]):before {
+    content: attr(data-label);
     font-weight: bold;
     text-align: left;
+    padding-right: 1rem;
+  }
+  .rwd-table td:last-child {
+    border-bottom: 0;
+  }
+  .rwd-table td[data-label="操作"] {
+    /* 改為區塊級元素，讓按鈕能穩定地佔滿寬度 */
+    display: block;
+    white-space: normal; /* 在行動裝置上允許按鈕文字換行 */
+  }
+  .rwd-table td[data-label="操作"] button {
+    width: 100%;
   }
 }
 </style>

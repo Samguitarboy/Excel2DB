@@ -11,11 +11,11 @@
             <div>
               <router-link v-if="!guestStore.isGuestMode" to="/dashboard" class="btn btn-outline-primary me-2">統計儀表板</router-link>
               <template v-if="guestStore.isGuestMode">
-                <router-link
+                <button
                   v-if="!hasApplied"
-                  to="/apply"
+                  @click="handleNewApplicationClick"
                   class="btn btn-outline-success me-2"
-                >新款隨身碟申請</router-link>
+                >新款隨身碟申請</button>
                 <router-link
                   v-else
                   to="/my-applications"
@@ -48,7 +48,7 @@
                 :search-queries="columnSearchQueries"
                 :dropdown-options="dropdownOptions"
                 @sort="sortBy"
-                @update:searchQueries="updateSearchQueries"
+                @update:searchQueries="columnSearchQueries = $event"
                 @view-details="showDetails"
               />
             </div>
@@ -115,6 +115,12 @@ const selectedRow = ref(null);
 const toast = ref({ show: false, message: '', type: 'danger' });
 const hasApplied = ref(false);
 
+// --- 常數 (Constants) ---
+const POLLING_CONFIG = {
+  RETRIES: 5,
+  INTERVAL_MS: 500,
+};
+
 // --- 服務 (Services) ---
 const router = useRouter();
 const authStore = useAuthStore();
@@ -125,11 +131,22 @@ const guestStore = useGuestStore();
 
 const pageTitleUnit = computed(() => {
   if (guestStore.isGuestMode && guestStore.guestMajorUnit) {
-    return `${guestStore.guestMajorUnit} - `;
+    return `${guestStore.guestMajorUnit}`;
   }
-  return 'CEPP - ';
+  return 'CEPP';
 });
-const pageTitleMain = '可攜式儲存媒體使用清單列表';
+const pageTitleMain = ' - 可攜式儲存媒體使用清單列表';
+
+const unitControlContact = computed(() => {
+  if (!excelData.value || excelData.value.length === 0) {
+    return null;
+  }
+  const firstContact = excelData.value[0]['(自)單位管控窗口'];
+  if (!firstContact) return null;
+  
+  const allSame = excelData.value.every(row => row['(自)單位管控窗口'] === firstContact);
+  return allSame ? firstContact : null;
+});
 
 const tableHeaders = computed(() => {
   if (!excelData.value || excelData.value.length === 0) return [];
@@ -233,25 +250,73 @@ watch(
     }
   }
 );
-// --- 生命週期鉤子 (Lifecycle Hook) ---
-onMounted(async () => {
+
+// --- 方法 (Methods) ---
+
+const handleNewApplicationClick = () => {
+  const unit = pageTitleUnit.value || '此單位';
+  const contact = unitControlContact.value;
+  
+  let message = `請確定目前填寫人為 ${unit} 的承辦人，`;
+  if (contact) {
+    message = `請確定目前填寫人為 ${unit} 的窗口 ${contact}，`;
+  }
+  message += '且已與單位主管評估確認實際需要的新款加密隨身碟數量。(若每組/股申請超過一支需填寫申請理由供資訊室審核)'
+
+  if (window.confirm(message)) {
+    router.push('/apply');
+  }
+};
+
+const checkHasApplied = async () => {
+  if (guestStore.isGuestMode && guestStore.guestMajorUnit) {
+    try {
+      const apps = await fetchMyApplications(guestStore.guestMajorUnit);
+      // 只有當存在「審核中」或「已核准」的申請時，才視為「已申請」
+      hasApplied.value = Array.isArray(apps) && apps.some(app => app.status === 'pending' || app.status === 'approved');
+    } catch (error) {
+      console.error("無法檢查申請狀態:", error);
+      hasApplied.value = false; // 發生錯誤時，假設尚未申請
+    }
+  } else {
+    hasApplied.value = false;
+  }
+};
+
+const pollForApplicationStatus = async () => {
+  for (let i = 0; i < POLLING_CONFIG.RETRIES; i++) {
+    await checkHasApplied();
+    console.log(`[Home] 第${i + 1}次檢查申請狀態 hasApplied=`, hasApplied.value);
+    if (hasApplied.value) return; // 找到已申請狀態，提前退出
+    if (i < POLLING_CONFIG.RETRIES - 1) {
+      await new Promise(r => setTimeout(r, POLLING_CONFIG.INTERVAL_MS));
+    }
+  }
+  console.log('[Home] 輪詢結束，未找到已申請狀態。');
+};
+
+const initializeData = async () => {
   try {
     if (guestStore.isGuestMode && guestStore.guestSubUnits.length > 0) {
       excelData.value = await fetchPublicDataByUnits(guestStore.guestSubUnits);
+      console.log('[Home] 取得子單位資料', excelData.value);
     } else if (guestStore.isGuestMode) {
       error.value = '沒有選擇任何單位或所選單位沒有子單位。';
     } else {
       excelData.value = await fetchExcelData();
+      console.log('[Home] 取得全部資料', excelData.value);
     }
+    await pollForApplicationStatus();
   } catch (err) {
     error.value = err.message;
+    console.log('[Home] 資料載入失敗', err);
   } finally {
     loading.value = false;
+    console.log('[Home] 頁面初始化完成');
   }
-  await checkHasApplied();
-});
+};
 
-// --- 方法 (Methods) ---
+onMounted(initializeData);
 
 const handleLogout = () => {
   if (guestStore.isGuestMode) {
@@ -288,9 +353,7 @@ function goToPage() {
   }
 }
 
-function updateSearchQueries(queries) {
-  columnSearchQueries.value = queries;
-}
+
 
 function updateItemsPerPage(value) {
   itemsPerPage.value = value;
@@ -314,21 +377,6 @@ function showToast(message, type = 'danger') {
     toast.value.show = true;
   });
 }
-
-const checkHasApplied = async () => {
-  if (guestStore.isGuestMode && guestStore.guestMajorUnit) {
-    try {
-      const apps = await fetchMyApplications(guestStore.guestMajorUnit);
-      // 只有當存在「審核中」或「已核准」的申請時，才視為「已申請」
-      hasApplied.value = Array.isArray(apps) && apps.some(app => app.status === 'pending' || app.status === 'approved');
-    } catch (error) {
-      console.error("無法檢查申請狀態:", error);
-      hasApplied.value = false; // 發生錯誤時，假設尚未申請
-    }
-  } else {
-    hasApplied.value = false;
-  }
-};
 
 </script>
 

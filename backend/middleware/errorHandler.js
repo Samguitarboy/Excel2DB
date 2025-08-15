@@ -31,14 +31,14 @@ module.exports = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
-  if (process.env.NODE_ENV === 'development') {
-    sendErrorDev(err, res);
-  } else if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     // 在生產環境中，可以根據錯誤類型進行更細緻的處理
     // 例如，處理 Mongoose 錯誤、JWT 錯誤等
     let error = { ...err };
     error.message = err.message; // 確保 message 屬性被複製
-
     sendErrorProd(error, res);
+  } else {
+    // 預設情況或開發環境，發送詳細錯誤
+    sendErrorDev(err, res);
   }
 };

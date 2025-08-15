@@ -14,6 +14,7 @@ const applicationRoutes = require('./routes/applicationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
 const app = express(); // 創建 Express 應用程式實例
+app.set('trust proxy', 1); // 信任一層反向代理，這樣 req.ip 才能正確獲取用戶的真實 IP
 const port = process.env.PORT; // 設定伺服器監聽的埠號，預設為 3000
 
 // --- 中介軟體 (Middleware) ---

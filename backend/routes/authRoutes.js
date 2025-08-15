@@ -24,18 +24,18 @@ router.post('/login', async (req, res, next) => {
         const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, {
           expiresIn: '1h',
         });
-        res.json({ token });
+        res.status(200).json({ token });
       } else {
         logger.warn(`Invalid credentials for user: ${username}`);
-        return next(new AppError('Invalid credentials', 401));
+        return next(new AppError('帳號或密碼錯誤', 401));
       }
     } else {
       logger.warn(`User not found: ${username}`);
-      return next(new AppError('Invalid credentials', 401));
+      return next(new AppError('帳號或密碼錯誤', 401));
     }
   } catch (error) {
     logger.error('❌ Error during login process:', error);
-    return next(new AppError('Login failed due to server error.', 500));
+    return next(error);
   }
 });
 

@@ -5,26 +5,39 @@
       <div class="card shadow">
         <div class="card-body p-4">
           <h3 class="card-title text-center mb-4">可攜式儲存媒體使用情形</h3>
-          <form @submit.prevent="handleLogin">
+
+          <!-- 登入表單，僅在 showAdminLogin 為 true 時顯示 -->
+          <form v-if="showAdminLogin" @submit.prevent="handleLogin">
             <div v-if="error" class="alert alert-danger">{{ error }}</div>
             <div class="mb-3">
-              <label for="username" class="form-label">管理者名稱</label>
+              <label for="username" class="form-label">管理者名稱<span style="color: red;">*</span></label>
               <input type="text" class="form-control" id="username" v-model="username" required>
             </div>
             <div class="mb-3">
-              <label for="password" class="form-label">密碼</label>
+              <label for="password" class="form-label">密碼<span style="color: red;">*</span></label>
               <input type="password" class="form-control" id="password" v-model="password" required>
             </div>
-            <div class="d-grid">
+            <div class="d-grid gap-2">
               <button type="submit" class="btn btn-primary" :disabled="loading">
                 <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 {{ loading ? '登入中...' : '登入' }}
               </button>
-            </div>
-            <div class="d-grid mt-2">
-              <router-link to="/guest-login" class="btn btn-outline-secondary">廠內同仁查詢所屬單位使用情形</router-link>
+              <button type="button" class="btn btn-outline-secondary" @click="goBackToSelection">
+                返回
+              </button>
             </div>
           </form>
+
+          <!-- 初始按鈕，僅在 showAdminLogin 為 false 時顯示 -->
+          <div v-else class="d-grid gap-2">
+            <button type="button" class="btn btn-primary" @click="showAdminLogin = true">
+              資訊室管理者登入
+            </button>
+            <router-link to="/guest-login" class="btn btn-outline-secondary">
+              廠內同仁查詢所屬單位使用情形
+            </router-link>
+          </div>
+
         </div>
       </div>
     </div>
@@ -44,6 +57,7 @@ const password = ref('');
 const error = ref(null); // 用於儲存登入失敗的錯誤訊息
 const loading = ref(false); // 用於控制登入按鈕的禁用狀態和顯示文字
 const showAnnouncement = ref(true); // 控制公告是否顯示
+const showAdminLogin = ref(false); // 控制是否顯示管理者登入表單
 
 // -- services --
 const router = useRouter();
@@ -54,9 +68,22 @@ const handleAnnouncementClose = () => {
 };
 
 /**
+ * 返回到初始的登入類型選擇畫面。
+ */
+const goBackToSelection = () => {
+  showAdminLogin.value = false;
+  error.value = null; // 清除可能存在的錯誤訊息
+  // 可選擇性地清除輸入框內容
+  username.value = '';
+  password.value = '';
+};
+
+/**
  * 處理登入邏輯
  */
 const handleLogin = async () => {
+  if (loading.value) return; // 防止重複提交
+  
   loading.value = true; // 開始登入，禁用按鈕
   error.value = null;   // 清除之前的錯誤訊息
 
@@ -67,20 +94,20 @@ const handleLogin = async () => {
       password: password.value 
     });
 
+    if (!response?.token) {
+      throw new Error('登入失敗：未收到有效的登入憑證');
+    }
+
     // 登入成功後，使用 auth store 來儲存 token
     authStore.setToken(response.token);
 
     // 使用 router 導向到儀表板
     router.push('/dashboard');
-
   } catch (err) {
-    // 如果 API 呼叫失敗，顯示錯誤訊息
-    // 注意：axios 攔截器已經處理了網路層面的錯誤，這裡的 catch 主要處理業務邏輯上的失敗
-    error.value = '登入失敗，請檢查您的帳號或密碼。';
-
+    console.error('Login error:', err);
+    error.value = err.message;
   } finally {
-    // 無論成功或失敗，最終都結束載入狀態
-    loading.value = false;
+    loading.value = false; // 確保無論如何都會結束 loading 狀態
   }
 };
 </script>
