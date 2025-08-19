@@ -47,6 +47,11 @@ const routes = [
     name: 'MyApplications',
     component: MyApplications,
   },
+  {
+    path: '/regulations',
+    name: 'Regulations',
+    component: () => import('../views/Regulations.vue'),
+  },
 ];
 
 const router = createRouter({

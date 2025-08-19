@@ -52,54 +52,62 @@
         </div>
         <div v-else-if="reviewError" class="alert alert-danger">{{ reviewError }}</div>
         <div v-else>
-          <div class="row">
-            <!-- Other Applications (Left) -->
-            <div class="col-lg-6 mb-4 mb-lg-0">
-              <div class="card h-100">
-                <div class="card-header">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">待處理及歷史申請 (共 {{ otherApplications.length }} 筆)</h5>
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" role="switch" id="show-pending-only" v-model="showOnlyPending">
-                      <label class="form-check-label" for="show-pending-only">僅顯示審核中</label>
-                    </div>
+          <div class="card">
+            <div class="card-header">
+              <ul class="nav nav-tabs card-header-tabs" id="application-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" :class="{ active: activeReviewTab === 'pending' }" id="pending-tab" @click="activeReviewTab = 'pending'" type="button" role="tab" aria-controls="pending-panel" aria-selected="true">
+                    待處理及歷史申請 <span class="badge rounded-pill" :class="otherApplications.length > 0 ? 'bg-warning text-dark' : 'bg-secondary'">{{ otherApplications.length }}</span>
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" :class="{ active: activeReviewTab === 'approved' }" id="approved-tab" @click="activeReviewTab = 'approved'" type="button" role="tab" aria-controls="approved-panel" aria-selected="false">
+                    已核准的申請 <span class="badge rounded-pill bg-success">{{ approvedApplications.length }}</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <div class="card-body tab-content" id="application-tabs-content">
+              <!-- Pending and History Tab Panel -->
+              <div class="tab-pane fade" :class="{ 'show active': activeReviewTab === 'pending' }" id="pending-panel" role="tabpanel" aria-labelledby="pending-tab">
+                <div class="d-flex justify-content-end align-items-center mb-3">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="show-pending-only" v-model="showOnlyPending">
+                    <label class="form-check-label" for="show-pending-only">僅顯示審核中</label>
                   </div>
                 </div>
-                <div class="card-body d-flex flex-column">
-                  <div v-if="paginatedOtherApplications.length > 0" class="flex-grow-1">
-                    <div class="table-responsive">
-                      <table class="table table-sm table-hover align-middle">
-                        <thead>
-                          <tr>
-                            <th>所屬單位-組別/股別</th>
-                            <th>保管人</th>
-                            <th>申請狀態</th>
-                            <th>來源 IP</th>
-                            <th>申請原因</th>
-                            <th>最後更新時間</th>
-                            <th class="text-center">操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="app in paginatedOtherApplications" :key="app.id">
-                            <td>{{ app.subUnit }}</td>
-                            <td>{{ app.custodian }}</td>
-                            <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
-                            <td>{{ app.sourceIp || 'N/A' }}</td>
-                            <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
-                            <td>{{ formatDateTime(app.updatedAt) }}</td>
-                            <td class="text-center">
-                              <button v-if="app.status === 'pending'" class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
-                              <button v-if="app.status === 'pending'" class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                <div v-if="paginatedOtherApplications.length > 0">
+                  <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                      <thead>
+                        <tr>
+                          <th>所屬單位-組別/股別</th>
+                          <th>保管人</th>
+                          <th>申請狀態</th>
+                          <th>來源 IP</th>
+                          <th>申請原因</th>
+                          <th>最後更新時間</th>
+                          <th class="text-center">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="app in paginatedOtherApplications" :key="app.id">
+                          <td>{{ app.subUnit }}</td>
+                          <td>{{ app.custodian }}</td>
+                          <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
+                          <td>{{ app.sourceIp || 'N/A' }}</td>
+                          <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
+                          <td>{{ formatDateTime(app.updatedAt) }}</td>
+                          <td class="text-center">
+                            <button v-if="app.status === 'pending'" class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
+                            <button v-if="app.status === 'pending'" class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <p v-else class="text-center text-muted my-auto">目前沒有待處理或歷史申請。</p>
                   <!-- Pagination -->
-                  <nav v-if="totalPages > 1" class="mt-auto pt-3" aria-label="Application pagination">
+                  <nav v-if="totalPages > 1" class="mt-3" aria-label="Application pagination">
                     <ul class="pagination justify-content-center">
                       <li class="page-item" :class="{ disabled: currentPage === 1 }"><a class="page-link" href="#" @click.prevent="currentPage--">上一頁</a></li>
                       <li v-for="page in totalPages" :key="page" class="page-item" :class="{ active: currentPage === page }"><a class="page-link" href="#" @click.prevent="currentPage = page">{{ page }}</a></li>
@@ -107,49 +115,42 @@
                     </ul>
                   </nav>
                 </div>
+                <p v-else class="text-center text-muted my-5">目前沒有待處理或歷史申請。</p>
               </div>
-            </div>
 
-            <!-- Approved Applications (Right) -->
-            <div class="col-lg-6">
-              <div class="card h-100">
-                <div class="card-header bg-success-subtle">
-                  <h5 class="card-title mb-0">已核准的申請 (共 {{ approvedApplications.length }} 筆)</h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                  <div v-if="paginatedApprovedApplications.length > 0" class="flex-grow-1">
-                    <div class="table-responsive">
-                      <table class="table table-sm table-hover align-middle">
-                        <thead>
-                          <tr>
-                            <th>所屬單位-組別/股別</th>
-                            <th>保管人</th>
-                            <th>來源 IP</th>
-                            <th>申請原因</th>
-                            <th>核准時間</th>
-                            <th class="text-center">操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="app in paginatedApprovedApplications" :key="app.id">
-                            <td>{{ app.subUnit }}</td>
-                            <td>{{ app.custodian }}</td>
-                            <td>{{ app.sourceIp || 'N/A' }}</td>
-                            <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
-                            <td>{{ formatDateTime(app.updatedAt) }}</td>
-                            <td class="text-center">
-                              <a :href="`/api/applications/${app.id}/download`" class="btn btn-sm btn-info" target="_blank" rel="noopener noreferrer" title="在新分頁中預覽PDF">
-                                <i class="bi bi-search"></i> 預覽PDF
-                              </a>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+              <!-- Approved Tab Panel -->
+              <div class="tab-pane fade" :class="{ 'show active': activeReviewTab === 'approved' }" id="approved-panel" role="tabpanel" aria-labelledby="approved-tab">
+                <div v-if="paginatedApprovedApplications.length > 0">
+                  <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                      <thead>
+                        <tr>
+                          <th>所屬單位-組別/股別</th>
+                          <th>保管人</th>
+                          <th>來源 IP</th>
+                          <th>申請原因</th>
+                          <th>核准時間</th>
+                          <th class="text-center">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="app in paginatedApprovedApplications" :key="app.id">
+                          <td>{{ app.subUnit }}</td>
+                          <td>{{ app.custodian }}</td>
+                          <td>{{ app.sourceIp || 'N/A' }}</td>
+                          <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
+                          <td>{{ formatDateTime(app.updatedAt) }}</td>
+                          <td class="text-center">
+                            <a :href="`/api/applications/${app.id}/download`" class="btn btn-sm btn-info" target="_blank" rel="noopener noreferrer" title="在新分頁中預覽PDF">
+                              <i class="bi bi-search"></i> 預覽PDF
+                            </a>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <p v-else class="text-center text-muted my-auto">目前沒有已核准的申請。</p>
                   <!-- Pagination for Approved Applications -->
-                  <nav v-if="approvedTotalPages > 1" class="mt-auto pt-3" aria-label="Approved applications pagination">
+                  <nav v-if="approvedTotalPages > 1" class="mt-3" aria-label="Approved applications pagination">
                     <ul class="pagination justify-content-center">
                       <li class="page-item" :class="{ disabled: approvedCurrentPage === 1 }"><a class="page-link" href="#" @click.prevent="approvedCurrentPage--">上一頁</a></li>
                       <li v-for="page in approvedTotalPages" :key="page" class="page-item" :class="{ active: approvedCurrentPage === page }"><a class="page-link" href="#" @click.prevent="approvedCurrentPage = page">{{ page }}</a></li>
@@ -157,6 +158,7 @@
                     </ul>
                   </nav>
                 </div>
+                <p v-else class="text-center text-muted my-5">目前沒有已核准的申請。</p>
               </div>
             </div>
           </div>
@@ -360,6 +362,7 @@ const currentPage = ref(1);
 const approvedCurrentPage = ref(1);
 const itemsPerPage = 10;
 const showOnlyPending = ref(true);
+const activeReviewTab = ref('pending'); // 'pending' or 'approved'
 
 const toggleDepartment = (department) => {
   expandedDepartments.value[department] = !expandedDepartments.value[department];

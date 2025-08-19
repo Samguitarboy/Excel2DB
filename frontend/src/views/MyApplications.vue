@@ -364,6 +364,9 @@ const downloadOrRegeneratePdf = async (app) => {
 
 
 <style scoped>
+.container {
+  max-width: 83%;
+}
 .badge {
   font-size: 0.9em;
 }

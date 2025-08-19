@@ -36,6 +36,9 @@
             <router-link to="/guest-login" class="btn btn-outline-secondary">
               廠內同仁查詢所屬單位使用情形
             </router-link>
+            <router-link to="/regulations" class="btn btn-info">
+              查看可攜式儲存媒體相關規定
+            </router-link>
           </div>
 
         </div>
