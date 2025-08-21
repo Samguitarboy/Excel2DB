@@ -59,7 +59,8 @@ async function generatePdf(applicationData) {
       month: (today.getMonth() + 1).toString().padStart(2, '0'),
       day: today.getDate().toString().padStart(2, '0'),
       affiliatedUnit: applicationData.affiliatedUnit || '',
-      reason: applicationData.reason ? `單位需申請超過一隻原因：${applicationData.reason}` : ''
+            reason: applicationData.reason ? `單位需申請超過一隻原因：${applicationData.reason}` : '',
+      appl_number: applicationData.appl_number || 1
     };
 
     // 3. 替換佔位符

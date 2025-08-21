@@ -165,9 +165,26 @@ router.patch('/:id/status', authenticateJWT, async (req, res, next) => {
 
     // 如果狀態更新為 "已核准"，則產生並儲存 PDF
     if (status === 'approved') {
+      // --- Start of custom logic for {{number}} ---
+      const { affiliatedUnit, custodian, id } = application;
+      
+      const userApplications = applications
+        .filter(app => 
+          app.status === 'approved' &&
+          app.affiliatedUnit === affiliatedUnit &&
+          app.custodian === custodian
+        )
+        .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+
+      const number = userApplications.findIndex(app => app.id === id) + 1;
+      application.appl_number = number || 1;
+
+      logger.info(`[PDF Number] Application for ${custodian} in ${affiliatedUnit}. New number: ${application.appl_number}`);
+      // --- End of custom logic ---
+
       let tempFiles = {};
       try {
-        // 1. 在暫存目錄中產生 PDF
+        // 1. 在暫存目錄中產生 PDF (現在 application 物件已包含 number)
         tempFiles = await generatePdf(application);
 
         // 2. 定義最終儲存路徑，檔名為申請 ID
@@ -212,6 +229,20 @@ router.post('/:id/regenerate-pdf', async (req, res, next) => {
         if (application.status !== 'approved') {
             return next(new AppError('Cannot generate PDF for a non-approved application.', 400));
         }
+
+        // --- Start of custom logic for {{number}} ---
+        const approvedUserApps = applications
+          .filter(app => 
+            app.status === 'approved' && 
+            app.affiliatedUnit === application.affiliatedUnit && 
+            app.custodian === application.custodian
+          )
+          .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+        
+        const number = approvedUserApps.findIndex(app => app.id === application.id) + 1;
+        application.appl_number = number || 1; // Default to 1 if not found
+        logger.info(`[PDF Number] REGENERATING for ${application.custodian} in ${application.affiliatedUnit}. Found ${approvedUserApps.length} apps. New number: ${application.appl_number}`);
+        // --- End of custom logic ---
 
         // --- PDF Generation Logic ---
         let tempFiles = {};

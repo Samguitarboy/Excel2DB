@@ -90,17 +90,22 @@
                           <th class="text-center">操作</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        <tr v-for="app in paginatedOtherApplications" :key="app.id">
-                          <td>{{ app.subUnit }}</td>
+                      <tbody v-for="groupData in finalGroupedOtherApplications" :key="groupData.key">
+                        <tr v-for="(app, index) in groupData.apps" :key="app.id">
+                          <td v-if="index === 0" :rowspan="groupData.apps.length" style="vertical-align: middle;">{{ app.subUnit }}</td>
                           <td>{{ app.custodian }}</td>
                           <td><span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span></td>
                           <td>{{ app.sourceIp || 'N/A' }}</td>
-                          <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
-                          <td>{{ formatDateTime(app.updatedAt) }}</td>
-                          <td class="text-center">
-                            <button v-if="app.status === 'pending'" class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')">核准</button>
-                            <button v-if="app.status === 'pending'" class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')">拒絕</button>
+                          <td v-if="index === 0" :rowspan="groupData.apps.length" style="vertical-align: middle;">{{ groupData.apps[0].reason || '該單位僅申請一支隨身碟' }}</td>
+                          <td v-if="index === 0 && groupData.mergeTime" :rowspan="groupData.apps.length" style="vertical-align: middle;">
+                            {{ formatDateTime(app.updatedAt) }}
+                          </td>
+                          <td v-else-if="!groupData.mergeTime">
+                            {{ formatDateTime(app.updatedAt) }}
+                          </td>
+                          <td class="text-center" style="vertical-align: middle;">
+                            <button v-if="app.status === 'pending'" class="btn btn-sm btn-success me-2" @click="updateStatus(app.id, 'approved')" :disabled="isBeforeDeadline">核准</button>
+                            <button v-if="app.status === 'pending'" class="btn btn-sm btn-danger" @click="updateStatus(app.id, 'rejected')" :disabled="isBeforeDeadline">拒絕</button>
                           </td>
                         </tr>
                       </tbody>
@@ -133,14 +138,19 @@
                           <th class="text-center">操作</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        <tr v-for="app in paginatedApprovedApplications" :key="app.id">
-                          <td>{{ app.subUnit }}</td>
+                      <tbody v-for="groupData in finalGroupedApprovedApplications" :key="groupData.key">
+                        <tr v-for="(app, index) in groupData.apps" :key="app.id">
+                          <td v-if="index === 0" :rowspan="groupData.apps.length" style="vertical-align: middle;">{{ app.subUnit }}</td>
                           <td>{{ app.custodian }}</td>
                           <td>{{ app.sourceIp || 'N/A' }}</td>
-                          <td>{{ app.reason || '該單位僅申請一支隨身碟' }}</td>
-                          <td>{{ formatDateTime(app.updatedAt) }}</td>
-                          <td class="text-center">
+                          <td v-if="index === 0" :rowspan="groupData.apps.length" style="vertical-align: middle;">{{ groupData.apps[0].reason || '該單位僅申請一支隨身碟' }}</td>
+                          <td v-if="index === 0 && groupData.mergeTime" :rowspan="groupData.apps.length" style="vertical-align: middle;">
+                            {{ formatDateTime(app.updatedAt) }}
+                          </td>
+                          <td v-else-if="!groupData.mergeTime">
+                            {{ formatDateTime(app.updatedAt) }}
+                          </td>
+                          <td v-if="app.isFirstInCustodianGroup" :rowspan="app.custodianRowspan" class="text-center" style="vertical-align: middle;">
                             <a :href="`/api/applications/${app.id}/download`" class="btn btn-sm btn-info" target="_blank" rel="noopener noreferrer" title="在新分頁中預覽PDF">
                               <i class="bi bi-search"></i> 預覽PDF
                             </a>
@@ -425,6 +435,52 @@ const paginatedApprovedApplications = computed(() => {
   return approvedApplications.value.slice(start, end);
 });
 
+const processedPaginatedApprovedApplications = computed(() => {
+  if (!paginatedApprovedApplications.value) return [];
+  const grouped = paginatedApprovedApplications.value.reduce((acc, app) => {
+    const key = app.subUnit || '未知單位';
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(app);
+    return acc;
+  }, {});
+  return Object.values(grouped);
+});
+
+const finalGroupedApprovedApplications = computed(() => {
+  const truncateToMinute = (iso) => iso ? iso.slice(0, 16) : null;
+  
+  return processedPaginatedApprovedApplications.value.map(group => {
+    const firstApp = group[0];
+    const mergeTime = group.every(app => truncateToMinute(app.updatedAt) === truncateToMinute(firstApp.updatedAt));
+
+    const processedApps = [];
+    const handledIds = new Set();
+
+    group.forEach(app => {
+      if (handledIds.has(app.id)) return;
+
+      const custodianGroup = group.filter(a => a.custodian === app.custodian);
+
+      custodianGroup.forEach((member, index) => {
+        processedApps.push({
+          ...member,
+          isFirstInCustodianGroup: index === 0,
+          custodianRowspan: custodianGroup.length,
+        });
+        handledIds.add(member.id);
+      });
+    });
+
+    return {
+      apps: processedApps,
+      mergeTime,
+      key: firstApp.id
+    };
+  });
+});
+
 const totalPages = computed(() => {
   return Math.ceil(otherApplications.value.length / itemsPerPage);
 });
@@ -437,6 +493,39 @@ const paginatedOtherApplications = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage;
   const end = start + itemsPerPage;
   return otherApplications.value.slice(start, end);
+});
+
+const processedPaginatedApplications = computed(() => {
+  if (!paginatedOtherApplications.value) return [];
+  const grouped = paginatedOtherApplications.value.reduce((acc, app) => {
+    const key = app.subUnit || '未知單位';
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(app);
+    return acc;
+  }, {});
+  return Object.values(grouped);
+});
+
+const finalGroupedOtherApplications = computed(() => {
+  const truncateToMinute = (iso) => iso ? iso.slice(0, 16) : null;
+  return processedPaginatedApplications.value.map(group => {
+    const firstTime = truncateToMinute(group[0].updatedAt);
+    const mergeTime = group.every(app => truncateToMinute(app.updatedAt) === firstTime);
+    return {
+      apps: group,
+      mergeTime: mergeTime,
+      key: group[0].id
+    };
+  });
+});
+
+const isBeforeDeadline = computed(() => {
+  const today = new Date();
+  // 月份是 0-indexed, 所以 8 代表 9 月
+  const deadline = new Date(today.getFullYear(), 8, 1); 
+  return today < deadline;
 });
 
 // --- Methods for Review Panel ---
@@ -612,7 +701,7 @@ const inactiveUsbList = computed(() => {
     if (!lastAccessDateStr || lastAccessDateStr.trim() === '') {
       return true;
     }
-    const lastAccessDate = new Date(lastAccessDateStr.replace(/\//g, '-'));
+    const lastAccessDate = new Date(lastAccessDateStr.replace(/\\/g, '-'));
     return isNaN(lastAccessDate.getTime()) || lastAccessDate < thresholdDate;
   });
 
@@ -627,8 +716,8 @@ const inactiveUsbList = computed(() => {
     if (isInvalidA) return -1;
     if (isInvalidB) return 1;
 
-    const dateA = new Date(dateStrA.replace(/\//g, '-'));
-    const dateB = new Date(dateStrB.replace(/\//g, '-'));
+    const dateA = new Date(dateStrA.replace(/\\/g, '-'));
+    const dateB = new Date(dateStrB.replace(/\\/g, '-'));
 
     if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
     if (isNaN(dateA.getTime())) return -1;

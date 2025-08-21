@@ -23,15 +23,15 @@
         
         <div v-if="error" class="alert alert-danger">{{ error }}</div>
         <div v-else-if="filteredApplications.length > 0" class="table-responsive">
-          <table class="table table-striped">
-            <thead>
+          <table class="table table-striped table-hover table-bordered align-middle">
+            <thead class="table-light">
               <tr>
                 <th>所屬單位</th>
                 <th>組別/股別</th>
                 <th>保管人</th>
                 <th>單位管控窗口</th>
                 <th>申請狀態</th>
-                <th>申請原因</th>
+                <th style="width: 500px;">申請原因</th>
                 <th @click="sortBy('updatedAt')" class="sortable-header">
                   最後更新時間
                   <i v-if="sortKey === 'updatedAt'" class="bi" :class="sortOrder === 'asc' ? 'bi-sort-up' : 'bi-sort-down'"></i>
@@ -39,18 +39,41 @@
                 <th>操作</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="app in filteredApplications" :key="app.id">
-                <td>{{ app.affiliatedUnit }}</td>
-                <td>{{ app.subUnit }}</td>
+            <tbody v-for="groupData in finalGroupedApplications" :key="groupData.key">
+              <tr v-for="(app, index) in groupData.apps" :key="app.id">
+                <td v-if="index === 0" :rowspan="groupData.apps.length">{{ app.affiliatedUnit }}</td>
+                
+                <td v-if="index === 0 && groupData.mergeSubUnit" :rowspan="groupData.apps.length">
+                  {{ app.subUnit }}
+                </td>
+                <td v-else-if="!groupData.mergeSubUnit">
+                  {{ app.subUnit }}
+                </td>
+
                 <td>{{ app.custodian }}</td>
-                <td>{{ app.unitControlContact }}</td>
+
+                <td v-if="index === 0 && groupData.mergeUnitControlContact" :rowspan="groupData.apps.length">
+                  {{ app.unitControlContact }}
+                </td>
+                <td v-else-if="!groupData.mergeUnitControlContact">
+                  {{ app.unitControlContact }}
+                </td>
+
                 <td>
                   <span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span>
                 </td>
-                <td>{{ app.reason || '' }}</td>
-                <td>{{ formatDateTime(app.updatedAt) }}</td>
-                <td>
+                
+                <td v-if="index === 0 && groupData.mergeReason" :rowspan="groupData.apps.length">{{ groupData.apps[0].reason || '' }}</td>
+                <td v-else-if="!groupData.mergeReason">{{ app.reason || '' }}</td>
+                
+                <td v-if="index === 0 && groupData.mergeTime" :rowspan="groupData.apps.length">
+                  {{ formatDateTime(app.updatedAt) }}
+                </td>
+                <td v-else-if="!groupData.mergeTime">
+                  {{ formatDateTime(app.updatedAt) }}
+                </td>
+
+                <td v-if="app.isFirstInSubmission" :rowspan="app.submissionRowspan">
                   <button
                     v-if="app.status === 'pending'"
                     class="btn btn-sm btn-primary"
@@ -75,8 +98,7 @@
           </table>
         </div>
         <div v-else-if="pollingFailed" class="alert alert-warning">
-          系統在多次嘗試後仍無法更新您剛才提出的申請，它可能仍在處理中。
-          <br>
+          系統在多次嘗試後仍無法更新您剛才提出的申請，它可能仍在處理中。<br>
           請稍後再自行刷新頁面，或聯繫資訊室。
         </div>
         <div v-else class="alert alert-info">
@@ -208,6 +230,63 @@ const filteredApplications = computed(() => {
   });
 });
 
+const processedFilteredApplications = computed(() => {
+  if (!filteredApplications.value) return [];
+  const grouped = filteredApplications.value.reduce((acc, app) => {
+    const key = app.affiliatedUnit || '未知單位';
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(app);
+    return acc;
+  }, {});
+  return Object.values(grouped);
+});
+
+const finalGroupedApplications = computed(() => {
+  const truncateToMinute = (iso) => iso ? iso.slice(0, 16) : null;
+  return processedFilteredApplications.value.map(group => {
+    const firstApp = group[0];
+    const mergeTime = group.every(app => truncateToMinute(app.updatedAt) === truncateToMinute(firstApp.updatedAt));
+    const mergeSubUnit = group.every(app => app.subUnit === firstApp.subUnit);
+    const mergeUnitControlContact = group.every(app => app.unitControlContact === firstApp.unitControlContact);
+    const mergeReason = !group.some(app => app.status === 'withdrawn');
+
+    const processedApps = [];
+    const handledIds = new Set();
+
+    group.forEach(app => {
+      if (handledIds.has(app.id)) return;
+
+      let submissionGroup;
+      if (app.submissionId) {
+        // 修正：只根據 submissionId 進行分組，以便合併「撤回申請」按鈕
+        submissionGroup = group.filter(a => a.submissionId === app.submissionId);
+      } else {
+        submissionGroup = [app];
+      }
+
+      submissionGroup.forEach((member, index) => {
+        processedApps.push({
+          ...member,
+          isFirstInSubmission: index === 0,
+          submissionRowspan: submissionGroup.length,
+        });
+        handledIds.add(member.id);
+      });
+    });
+
+    return {
+      apps: processedApps,
+      mergeTime,
+      mergeSubUnit,
+      mergeUnitControlContact,
+      mergeReason,
+      key: firstApp.id
+    };
+  });
+});
+
 const translateStatus = (status) => {
   return statusOptions[status] || status;
 };
@@ -267,15 +346,12 @@ const withdrawApplication = async (app) => {
       await fetchData();
       console.log(`[MyApplications] 第${i+1}次重試取得已撤回紀錄`);
 
-      // 在新抓到的資料中，找到我們剛剛撤回的那筆申請
       const freshApp = myApplications.value.find(a => a.id === app.id);
 
-      // 如果找到了，且它的狀態確實已經變成 'withdrawn'
       if (freshApp && freshApp.status === 'withdrawn') {
         console.log('[MyApplications] 偵測到狀態已更新，提前結束輪詢。');
-        break; // 就立刻跳出 for 迴圈
+        break; 
       }
-      // 如果還沒更新，迴圈會繼續，直到下次檢查或全部跑完
     }
 
     const successMessage = isBatchWithdrawal
@@ -316,12 +392,10 @@ const parseApiError = async (error) => {
     return { message: error.message || '未知錯誤' };
   }
   try {
-    // Axios might return a Blob for file downloads, which needs to be read as text
     if (error.response.data instanceof Blob) {
       const errorText = await error.response.data.text();
       return JSON.parse(errorText);
     }
-    // If it's already an object (common for JSON API errors)
     return error.response.data;
   } catch (e) {
     return { message: '無法解析錯誤回應。' };
@@ -362,10 +436,13 @@ const downloadOrRegeneratePdf = async (app) => {
 };
 </script>
 
-
 <style scoped>
 .container {
   max-width: 83%;
+}
+.card {
+  box-shadow: 0 4px 8px rgba(0,0,0,.05);
+  border-radius: .5rem;
 }
 .badge {
   font-size: 0.9em;
