@@ -70,7 +70,8 @@ async function generatePdf(applicationData) {
       const escapedValue = String(value)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<text:line-break/>'); // 處理換行符號
       contentXml = contentXml.replace(pattern, escapedValue);
     }
 

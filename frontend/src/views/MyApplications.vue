@@ -39,59 +39,64 @@
                 <th>操作</th>
               </tr>
             </thead>
+            <!-- NEW LOGIC: Group by subUnit -->
             <tbody v-for="groupData in finalGroupedApplications" :key="groupData.key">
               <tr v-for="(app, index) in groupData.apps" :key="app.id">
+                <!-- Affiliated Unit: Show only on the first row of the group -->
                 <td v-if="index === 0" :rowspan="groupData.apps.length">{{ app.affiliatedUnit }}</td>
                 
-                <td v-if="index === 0 && groupData.mergeSubUnit" :rowspan="groupData.apps.length">
-                  {{ app.subUnit }}
-                </td>
-                <td v-else-if="!groupData.mergeSubUnit">
-                  {{ app.subUnit }}
-                </td>
+                <!-- Sub Unit: Show only on the first row of the group -->
+                <td v-if="index === 0" :rowspan="groupData.apps.length">{{ app.subUnit }}</td>
 
+                <!-- Custodian: Show for every row -->
                 <td>{{ app.custodian }}</td>
 
-                <td v-if="index === 0 && groupData.mergeUnitControlContact" :rowspan="groupData.apps.length">
-                  {{ app.unitControlContact }}
-                </td>
-                <td v-else-if="!groupData.mergeUnitControlContact">
-                  {{ app.unitControlContact }}
-                </td>
+                <!-- Unit Control Contact: Show only on the first row of the group -->
+                <td v-if="index === 0" :rowspan="groupData.apps.length">{{ app.unitControlContact }}</td>
 
+                <!-- Status: Show for every row -->
                 <td>
                   <span :class="statusClass(app.status)">{{ translateStatus(app.status) }}</span>
                 </td>
                 
-                <td v-if="index === 0 && groupData.mergeReason" :rowspan="groupData.apps.length">{{ groupData.apps[0].reason || '' }}</td>
-                <td v-else-if="!groupData.mergeReason">{{ app.reason || '' }}</td>
+                <!-- Reason: Show only on the first row of the group -->
+                <td v-if="index === 0" :rowspan="groupData.apps.length">{{ groupData.apps[0].reason || '該單位僅申請一支隨身碟' }}</td>
                 
-                <td v-if="index === 0 && groupData.mergeTime" :rowspan="groupData.apps.length">
-                  {{ formatDateTime(app.updatedAt) }}
-                </td>
-                <td v-else-if="!groupData.mergeTime">
+                <!-- Last Updated: Show only on the first row of the group -->
+                <td v-if="index === 0" :rowspan="groupData.apps.length">
                   {{ formatDateTime(app.updatedAt) }}
                 </td>
 
+                <!-- Actions: Complex rowspan logic handled by isFirstInSubmission -->
                 <td v-if="app.isFirstInSubmission" :rowspan="app.submissionRowspan">
-                  <button
-                    v-if="app.status === 'pending'"
-                    class="btn btn-sm btn-primary"
-                    @click="withdrawApplication(app)"
-                    :disabled="updating"
-                  >
-                    撤回申請
-                  </button>
-                  <button
-                    v-if="app.status === 'approved'"
-                    class="btn btn-sm btn-success"
-                    @click="downloadOrRegeneratePdf(app)"
-                    :disabled="downloading[app.id]"
-                  >
-                    <span v-if="downloading[app.id]" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    <i v-else class="bi bi-file-earmark-pdf-fill me-1"></i>
-                    {{ downloading[app.id] ? '處理中...' : '下載PDF' }}
-                  </button>
+                  <div class="d-flex">
+                    <button
+                      v-if="app.status === 'pending'"
+                      class="btn btn-sm btn-primary"
+                      @click="withdrawApplication(app)"
+                      :disabled="updating"
+                    >
+                      撤回申請
+                    </button>
+                    <button
+                      v-if="app.status === 'approved'"
+                      class="btn btn-sm btn-success"
+                      @click="downloadOrRegeneratePdf(app)"
+                      :disabled="downloading[app.id]"
+                    >
+                      <span v-if="downloading[app.id]" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      <i v-else class="bi bi-file-earmark-pdf-fill me-1"></i>
+                      {{ downloading[app.id] ? '處理中...' : '下載PDF' }}
+                    </button>
+                    <button
+                      v-if="app.status === 'approved'"
+                      class="btn btn-sm btn-info ms-2"
+                      @click="openUsageNotesModal('/pdfs/notice1.pdf')"
+                    >
+                      <i class="bi bi-info-circle-fill me-1"></i>
+                      使用注意事項
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -112,6 +117,11 @@
       :type="toast.type" 
       @update:show="toast.show = $event" 
     />
+    <UsageNotesModal 
+      v-if="showUsageNotesModal"
+      :pdf-path="usageNotesPdfPath"
+      @close="showUsageNotesModal = false"
+    />
   </div>
 </template>
 
@@ -122,6 +132,7 @@ import { useGuestStore } from '../stores/guest';
 import { fetchMyApplications, userWithdrawApplication, downloadApplicationPdf, regenerateApplicationPdf } from '../services/api';
 import Toast from '../components/Toast.vue';
 import LoadingOverlay from '../components/LoadingOverlay.vue';
+import UsageNotesModal from '../components/UsageNotesModal.vue';
 
 const POLLING_CONFIG = {
   RETRIES: 10,
@@ -155,6 +166,14 @@ const toast = ref({ show: false, message: '', type: 'info' });
 const route = useRoute();
 const sortKey = ref('updatedAt');
 const sortOrder = ref('desc'); // 'asc' or 'desc'
+
+const showUsageNotesModal = ref(false);
+const usageNotesPdfPath = ref('');
+
+const openUsageNotesModal = (pdfPath) => {
+  usageNotesPdfPath.value = pdfPath;
+  showUsageNotesModal.value = true;
+};
 
 const fetchData = async () => {
   try {
@@ -230,10 +249,12 @@ const filteredApplications = computed(() => {
   });
 });
 
-const processedFilteredApplications = computed(() => {
+// NEW LOGIC: Group by subUnit first
+const applicationsBySubUnit = computed(() => {
   if (!filteredApplications.value) return [];
   const grouped = filteredApplications.value.reduce((acc, app) => {
-    const key = app.affiliatedUnit || '未知單位';
+    // Use a composite key to ensure uniqueness across different main units
+    const key = `${app.affiliatedUnit}-${app.subUnit || '未知'}`;
     if (!acc[key]) {
       acc[key] = [];
     }
@@ -244,44 +265,41 @@ const processedFilteredApplications = computed(() => {
 });
 
 const finalGroupedApplications = computed(() => {
-  const truncateToMinute = (iso) => iso ? iso.slice(0, 16) : null;
-  return processedFilteredApplications.value.map(group => {
+  return applicationsBySubUnit.value.map(group => {
     const firstApp = group[0];
-    const mergeTime = group.every(app => truncateToMinute(app.updatedAt) === truncateToMinute(firstApp.updatedAt));
-    const mergeSubUnit = group.every(app => app.subUnit === firstApp.subUnit);
-    const mergeUnitControlContact = group.every(app => app.unitControlContact === firstApp.unitControlContact);
-    const mergeReason = !group.some(app => app.status === 'withdrawn');
 
-    const processedApps = [];
-    const handledIds = new Set();
+    // This logic is for the action buttons, which needs to be preserved.
+    // It now operates on the subUnit group, which is correct.
+    const processedApps = group.map((app, index, originalGroup) => {
+      let isFirst = false;
+      let rowspan = 1;
 
-    group.forEach(app => {
-      if (handledIds.has(app.id)) return;
-
-      let submissionGroup;
-      if (app.submissionId) {
-        // 修正：只根據 submissionId 進行分組，以便合併「撤回申請」按鈕
-        submissionGroup = group.filter(a => a.submissionId === app.submissionId);
+      if (app.status === 'approved') {
+        const firstIndexInGroup = originalGroup.findIndex(a => a.status === 'approved' && a.custodian === app.custodian);
+        isFirst = index === firstIndexInGroup;
+        if (isFirst) {
+          rowspan = originalGroup.filter(a => a.status === 'approved' && a.custodian === app.custodian).length;
+        }
+      } else if (app.status === 'pending' && app.submissionId) {
+        const firstIndexInGroup = originalGroup.findIndex(a => a.status === 'pending' && a.submissionId === app.submissionId);
+        isFirst = index === firstIndexInGroup;
+        if (isFirst) {
+          rowspan = originalGroup.filter(a => a.status === 'pending' && a.submissionId === app.submissionId).length;
+        }
       } else {
-        submissionGroup = [app];
+        isFirst = true;
+        rowspan = 1;
       }
 
-      submissionGroup.forEach((member, index) => {
-        processedApps.push({
-          ...member,
-          isFirstInSubmission: index === 0,
-          submissionRowspan: submissionGroup.length,
-        });
-        handledIds.add(member.id);
-      });
+      return {
+        ...app,
+        isFirstInSubmission: isFirst,
+        submissionRowspan: rowspan,
+      };
     });
 
     return {
       apps: processedApps,
-      mergeTime,
-      mergeSubUnit,
-      mergeUnitControlContact,
-      mergeReason,
       key: firstApp.id
     };
   });
@@ -424,9 +442,8 @@ const downloadOrRegeneratePdf = async (app) => {
   } catch (err) {
     const errorData = await parseApiError(err);
     if (err.response?.status === 404 && errorData.code === 'PDF_NOT_FOUND') {
-      if (confirm('PDF檔案不存在。您是否要立即重新產生一份？')) {
-        await regenerateAndDownload(app.id, filename);
-      }
+      // For regular users, just show an error message. Do not offer to regenerate.
+      showToast('PDF檔案不存在或尚未產生，請聯繫資訊室。', 'warning');
     } else {
       showToast(`下載失敗: ${errorData.message || '未知錯誤'}`, 'danger');
     }
