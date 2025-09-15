@@ -7,7 +7,7 @@ const { showLoading, hideLoading } = useLoading();
 
 // 建立一個可重用的 axios 實例，並設定基礎 URL 和標頭
 const apiClient = axios.create({
-  baseURL: '/api', // 所有請求都會自動加上 /api 前綴
+  baseURL: 'api', // 所有請求都會自動加上 /api 前綴
   headers: {
     'Content-Type': 'application/json',
   },
@@ -15,7 +15,7 @@ const apiClient = axios.create({
 
 // 建立一個用於公開 API 的 axios 實例，不帶有認證攔截器
 const publicApiClient = axios.create({
-  baseURL: '/api',
+  baseURL: 'api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -226,7 +226,7 @@ export function submitApplication(applicationData) {
    */
   export function downloadApplicationPdf(id) {
     // 注意：我們不使用標準的攔截器，因為需要特別處理 blob 回應類型和潛在的 404 錯誤。
-    return axios.get(`/api/applications/${id}/download`, {
+    return axios.get(`api/applications/${id}/download`, {
       responseType: 'blob',
     });
   }

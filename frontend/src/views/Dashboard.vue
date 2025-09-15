@@ -5,7 +5,7 @@
       <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
         <span class="visually-hidden">正在更新...</span>
       </div>
-      <p class="mt-3 fs-5 text-light">正在更新申請狀態，請稍候...</p>
+      <p class="mt-3 fs-5 text-light">{{ loadingMessage }}</p>
     </div>
 
     <!-- Header Controls -->
@@ -151,9 +151,12 @@
                             {{ formatDateTime(app.updatedAt) }}
                           </td>
                           <td v-if="app.isFirstInCustodianGroup" :rowspan="app.custodianRowspan" class="text-center" style="vertical-align: middle;">
-                            <a :href="`/api/applications/${app.id}/download`" class="btn btn-sm btn-info" target="_blank" rel="noopener noreferrer" title="在新分頁中預覽PDF">
+                            <a :href="`api/applications/${app.id}/download`" class="btn btn-sm btn-info" target="_blank" rel="noopener noreferrer" title="在新分頁中預覽PDF">
                               <i class="bi bi-search"></i> 預覽PDF
                             </a>
+                            <button class="btn btn-sm btn-warning ms-2" @click="handleRegeneratePdf(app.id)" title="重新產生PDF檔案">
+                                <i class="bi bi-arrow-clockwise"></i> 重製PDF
+                            </button>
                           </td>
                         </tr>
                       </tbody>
@@ -345,7 +348,7 @@
 import { ref, onMounted, computed, reactive } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useGuestStore } from '../stores/guest';
-import { fetchExcelData, fetchPublicDataByUnit, getApplications, updateApplicationStatus } from '../services/api';
+import { fetchExcelData, fetchPublicDataByUnit, getApplications, updateApplicationStatus, regenerateApplicationPdf } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import departmentHierarchy from '../data/departments.json';
 
@@ -368,6 +371,7 @@ const reviewApplications = ref([]);
 const reviewLoading = ref(true);
 const reviewError = ref(null);
 const isUpdatingStatus = ref(false);
+const loadingMessage = ref('正在更新...');
 const currentPage = ref(1);
 const approvedCurrentPage = ref(1);
 const itemsPerPage = 10;
@@ -529,7 +533,24 @@ const isBeforeDeadline = computed(() => {
 });
 
 // --- Methods for Review Panel ---
+const handleRegeneratePdf = async (id) => {
+  if (!confirm('確定要重新產生此申請的 PDF 嗎？這將會覆蓋現有的檔案。')) {
+    return;
+  }
+  loadingMessage.value = '正在重製 PDF，請稍候...';
+  isUpdatingStatus.value = true;
+  try {
+    const response = await regenerateApplicationPdf(id);
+    alert(response.message || 'PDF 已成功重新產生。');
+  } catch (err) {
+    alert(`重製 PDF 失敗：${err.message}`);
+  } finally {
+    isUpdatingStatus.value = false;
+  }
+};
+
 const updateStatus = async (id, status) => {
+  loadingMessage.value = '正在更新申請狀態，請稍候...';
   isUpdatingStatus.value = true;
   try {
     // 確保載入畫面至少顯示 1 秒，以提供更好的使用者體驗
