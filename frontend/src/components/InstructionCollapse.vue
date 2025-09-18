@@ -29,13 +29,13 @@ const steps = ref([
   {
     id: 1,
     title: '步驟一：隨身碟保管人',
-    description: '請點擊「下載 PDF」按鈕，取得您的申請單。列印出來後，請勾選此隨身碟為「個人使用」or「單位共用」，並填寫預計更換時間(最晚至10月底)，完成後交給單位管理人員。',
+    description: '請點擊「下載 PDF」按鈕，取得您的申請單。列印出來後，請勾選此隨身碟為「個人使用」or「單位共用」，並填寫預計更換時間(最晚至10月底)，完成後交給單位管控窗口。',
     imgSrc: new URL('../../assets/img/instruction1.png', import.meta.url).href 
   },
   {
     id: 2,
-    title: '步驟二：單位管理人員',
-    description: '簽名後，彙整單位內所有申請單，再送交給主管簽核(行政單位至主任、工廠至廠長)。',
+    title: '步驟二：單位管控窗口',
+    description: '彙整單位內所有申請單，簽名後再送交給主管簽核。(行政單位至主任、第一二工廠單位至廠長)',
     imgSrc: new URL('../../assets/img/instruction2.png', import.meta.url).href
   },
   {

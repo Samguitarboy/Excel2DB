@@ -130,6 +130,15 @@ export function fetchExcelData() {
   return apiClient.get('/excel-data');
 }
 
+/**
+ * 取得指定資產的借用歷史記錄 (無需認證)。
+ * @param {string} mediaPropertyNumber - 要查詢的資產編號。
+ * @returns {Promise<Array>} 返回包含該資產歷史記錄的陣列。
+ */
+export function getLoanHistoryByAsset(mediaPropertyNumber) {
+  return publicApiClient.get('/public/loans', { params: { mediaPropertyNumber } });
+}
+
 // --- 公開 API 函式 (無需認證) ---
 
 /**
@@ -181,6 +190,32 @@ export function fetchUsbDeviceContacts() {
  */
 export function submitApplication(applicationData) {
   return publicApiClient.post('/applications', applicationData);
+}
+
+/**
+ * 提交新的媒體借用申請 (無需認證)。
+ * @param {Object} loanData - 借用表單的資料。
+ * @returns {Promise<Object>} 返回後端的回應。
+ */
+export function submitLoan(loanData) {
+  return publicApiClient.post('/public/loans', loanData);
+}
+
+/**
+ * 取得所有借用紀錄 (無需認證)。
+ * @returns {Promise<Array>} 返回借用紀錄陣列。
+ */
+export function fetchLoans() {
+  return publicApiClient.get('/public/loans');
+}
+
+/**
+ * 歸還一個媒體 (無需認證)。
+ * @param {string} loanId - 要歸還的借用紀錄ID。
+ * @returns {Promise<Object>} 返回後端的回應。
+ */
+export function returnLoan(loanId) {
+  return publicApiClient.patch(`/public/loans/${loanId}/return`);
 }
 
   /**

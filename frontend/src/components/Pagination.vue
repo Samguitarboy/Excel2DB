@@ -1,7 +1,7 @@
 <template>
-  <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-3">
+  <div :class="['card-footer d-flex align-items-center flex-wrap gap-3', justifyContent]">
     <!-- 每頁顯示數量 -->
-    <div class="d-flex align-items-center">
+    <div v-if="showItemsPerPage" class="d-flex align-items-center">
       <label for="itemsPerPage" class="form-label me-2 mb-0 text-nowrap">每頁顯示</label>
       <select id="itemsPerPage" class="form-select form-select-sm" style="width: auto;"
               :value="itemsPerPage"
@@ -32,7 +32,7 @@
     </nav>
 
     <!-- 跳轉頁面 -->
-    <div class="d-flex align-items-center">
+    <div v-if="showJumpToPage" class="d-flex align-items-center">
       <span class="me-2 text-nowrap">共 {{ totalItems }} 筆資料</span>
       <input type="number" class="form-control form-control-sm" style="width: 70px;"
              :value="jumpPage"
@@ -51,7 +51,10 @@ const props = defineProps({
   currentPage: { type: Number, required: true },
   totalPages: { type: Number, required: true },
   itemsPerPage: { type: Number, required: true },
-  jumpPage: { type: [Number, String], required: true }
+  jumpPage: { type: [Number, String], required: true },
+  showItemsPerPage: { type: Boolean, default: true }, // 新增 prop
+  showJumpToPage: { type: Boolean, default: true },    // 新增 prop
+  justifyContent: { type: String, default: 'justify-content-between' } // 新增 prop
 });
 
 defineEmits(['update:itemsPerPage', 'change-page', 'go-to-page', 'update:jumpPage']);

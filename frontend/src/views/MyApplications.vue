@@ -4,7 +4,7 @@
     <div v-if="!loading" class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h2>我的申請紀錄</h2>
-        <router-link to="/" class="btn btn-secondary">返回列表</router-link>
+        <router-link to="/" class="btn btn-secondary">返回列表頁</router-link>
       </div>
       <div class="card-body">
         <p>

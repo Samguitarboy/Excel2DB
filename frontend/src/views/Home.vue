@@ -9,6 +9,9 @@
               <span class="title-main">{{ pageTitleMain }}</span>
             </h1>
             <div>
+              <router-link to="/media-loan" class="btn btn-success me-2">
+                <i class="bi bi-usb-drive-fill me-1"></i> 可攜式儲存媒體借用
+              </router-link>
               <router-link v-if="!guestStore.isGuestMode" to="/dashboard" class="btn btn-outline-primary me-2">統計儀表板</router-link>
               <template v-if="guestStore.isGuestMode">
                 <button

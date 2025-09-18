@@ -48,6 +48,12 @@ const routes = [
     component: MyApplications,
   },
   {
+    path: '/media-loan',
+    name: 'MediaLoan',
+    component: () => import('../views/MediaLoan.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/regulations',
     name: 'Regulations',
     component: () => import('../views/Regulations.vue'),

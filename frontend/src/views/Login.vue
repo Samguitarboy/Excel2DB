@@ -4,7 +4,7 @@
     <div v-if="!showAnnouncement" class="login-container">
       <div class="card shadow">
         <div class="card-body p-4">
-          <h3 class="card-title text-center mb-4">可攜式儲存媒體使用情形</h3>
+          <h3 class="card-title text-center mb-4">可攜式儲存媒體申換平台</h3>
 
           <!-- 登入表單，僅在 showAdminLogin 為 true 時顯示 -->
           <form v-if="showAdminLogin" @submit.prevent="handleLogin">
